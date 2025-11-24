@@ -59,7 +59,11 @@ jobs:
         fi
         
         # Extract version/date for release tag
-        VERSION=$(echo "$AP250MDV_FILENAME" | grep -oP '\d+\.\d+_\d+' | head -1)
+        if [ -n "$AP250MDV_FILENAME" ]; then
+          VERSION=$(echo "$AP250MDV_FILENAME" | grep -oP '\d+\.\d+_\d+' | head -1)
+        elif [ -n "$AP250MD_FILENAME" ]; then
+          VERSION=$(echo "$AP250MD_FILENAME" | grep -oP '\d+\.\d+_\d+' | head -1)
+        fi
         if [ -z "$VERSION" ]; then
           VERSION=$(date +%Y%m%d)
         fi
@@ -104,8 +108,9 @@ jobs:
         echo "Preparing release files..."
         mkdir -p release-files
         
-        # Move all patched firmware files to release directory
-        find . -maxdepth 1 -name "*JIKEAP_AP250MD*.bin" -type f -exec mv {} release-files/ \;
+        # Move all patched firmware files to release directory (exclude original firmware)
+        # Patched files have format: <board>-JIKEAP_AP250MD*.bin
+        find . -maxdepth 1 -type f -name "*-JIKEAP_AP250MD*.bin" -exec mv {} release-files/ \;
         
         echo "Files prepared for release:"
         ls -lh release-files/
@@ -174,11 +179,19 @@ jobs:
         EOF
         
         # Create or update release
-        gh release create "$TAG_NAME" \
-          --title "$RELEASE_NAME" \
-          --notes-file release_notes.md \
-          release-files/*.bin \
-          || gh release upload "$TAG_NAME" release-files/*.bin --clobber
+        if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+          echo "Release $TAG_NAME already exists, updating..."
+          gh release edit "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes-file release_notes.md
+          gh release upload "$TAG_NAME" release-files/*.bin --clobber
+        else
+          echo "Creating new release $TAG_NAME..."
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes-file release_notes.md \
+            release-files/*.bin
+        fi
     
     - name: Upload artifacts (backup)
       if: always()
