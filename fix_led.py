@@ -359,7 +359,7 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Generic DTB patcher driven by external JSON config (LED gpios, etc.)"
+        description="Generic DTB patcher driven by INI config (LED gpios, etc.)"
     )
     ap.add_argument("firmware", help="Input firmware .bin")
     ap.add_argument(
@@ -544,7 +544,7 @@ def main() -> int:
                 summary_lines.append(line)
 
     if total_changes == 0:
-        print("No changes applied (nothing matched expected original values)")
+        print("No changes applied (all values already set to target values or properties not found)")
         return 2
 
     # 更新 FIT hash
