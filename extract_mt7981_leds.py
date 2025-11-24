@@ -42,12 +42,14 @@ def fetch_dts_content(file_path: str) -> str:
     raw_url = f"https://raw.githubusercontent.com/hanwckf/bl-mt798x/master/{file_path}"
     try:
         with urllib.request.urlopen(raw_url) as response:
-            return response.read().decode('utf-8', errors='ignore')
+            content = response.read()
+            try:
+                return content.decode('utf-8')
+            except UnicodeDecodeError as e:
+                print(f"Warning: Encoding error in {file_path}, using replacement characters: {e}", file=sys.stderr)
+                return content.decode('utf-8', errors='replace')
     except urllib.error.URLError as e:
         print(f"Warning: Failed to fetch {file_path}: {e}", file=sys.stderr)
-        return ""
-    except UnicodeDecodeError as e:
-        print(f"Warning: Failed to decode {file_path}: {e}", file=sys.stderr)
         return ""
 
 
@@ -102,9 +104,10 @@ def parse_led_gpios(content: str) -> Dict[str, Optional[int]]:
         led_name = led_match.group(1)
         led_block = led_match.group(2)
         
-        # Extract gpios property: gpios = <&gpio N M> or <&pio N M>;
+        # Extract gpios property: gpios = <&gpio N FLAGS> or <&pio N FLAGS>;
         # We want the first number (N) which is the GPIO pin number
-        gpios_match = re.search(r'gpios\s*=\s*<&(gpio|pio)\s+(\d+)\s+\w+>', led_block)
+        # FLAGS can be GPIO_ACTIVE_HIGH, GPIO_ACTIVE_LOW or a numeric value
+        gpios_match = re.search(r'gpios\s*=\s*<&(gpio|pio)\s+(\d+)\s+(?:\w+|\d+)>', led_block)
         if not gpios_match:
             continue
             
