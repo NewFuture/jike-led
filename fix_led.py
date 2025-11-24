@@ -23,8 +23,7 @@
     调用示例:
 
         # 使用 INI 中的指定 机型
-        python3 fix_led_dtb_generic.py firmware.bin \
-            --config leds.ini --board komi-a31
+        python3 fix_led.py firmware.bin --config leds.ini --board komi-a31
 """
 from __future__ import annotations
 
@@ -602,3 +601,4 @@ if __name__ == "__main__":  # pragma: no cover
     except KeyboardInterrupt:
         print("Interrupted", file=sys.stderr)
         raise SystemExit(130)
+
