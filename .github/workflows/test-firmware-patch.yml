@@ -60,11 +60,11 @@ jobs:
     
     - name: Test single board patch
       run: |
-        echo "Testing single board patch (komi-a31)..."
-        python3 fix_led.py test_firmware.bin -b komi-a31 -o komi-a31-test.bin
-        if [ -f komi-a31-test.bin ]; then
+        echo "Testing single board patch (konka_komi-a31)..."
+        python3 fix_led.py test_firmware.bin -b konka_komi-a31 -o konka_komi-a31-test.bin
+        if [ -f konka_komi-a31-test.bin ]; then
           echo "Single board patch successful"
-          ls -lh komi-a31-test.bin
+          ls -lh konka_komi-a31-test.bin
         fi
     
     - name: Upload single board test
@@ -72,6 +72,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: single-board-test
-        path: komi-a31-test.bin
+        path: konka_komi-a31-test.bin
         if-no-files-found: warn
         retention-days: 7
