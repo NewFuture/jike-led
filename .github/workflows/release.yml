@@ -74,14 +74,22 @@ jobs:
       if: steps.download.outputs.ap250mdv_url != ''
       run: |
         echo "Downloading AP250MDV firmware..."
-        curl -L -o "${{ steps.download.outputs.ap250mdv_filename }}" "${{ steps.download.outputs.ap250mdv_url }}"
+        curl -L -o "${{ steps.download.outputs.ap250mdv_filename }}" "${{ steps.download.outputs.ap250mdv_url }}" || exit 1
+        if [ ! -f "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
+          echo "Error: Failed to download AP250MDV firmware file"
+          exit 1
+        fi
         ls -lh "${{ steps.download.outputs.ap250mdv_filename }}"
     
     - name: Download AP250MD firmware
       if: steps.download.outputs.ap250md_url != ''
       run: |
         echo "Downloading AP250MD firmware..."
-        curl -L -o "${{ steps.download.outputs.ap250md_filename }}" "${{ steps.download.outputs.ap250md_url }}"
+        curl -L -o "${{ steps.download.outputs.ap250md_filename }}" "${{ steps.download.outputs.ap250md_url }}" || exit 1
+        if [ ! -f "${{ steps.download.outputs.ap250md_filename }}" ]; then
+          echo "Error: Failed to download AP250MD firmware file"
+          exit 1
+        fi
         ls -lh "${{ steps.download.outputs.ap250md_filename }}"
     
     - name: Patch AP250MDV firmware for all boards
