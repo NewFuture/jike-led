@@ -97,3 +97,34 @@ When Copilot suggests changes to this file, it must respect:
 - Changing the hash update contract or removing digest matching.
 - Introducing non-standard-library dependencies (must stay pure stdlib Python).
 - Refactoring into multiple files or packages; keep it as a single self-contained script.
+
+## Automated Release System
+
+This repository includes an automated workflow (`.github/workflows/release.yml`) that:
+
+1. **Automatically downloads latest firmware**
+   - Checks http://file.cnrouter.com/index.php/Index/apbeta.html daily
+   - Downloads `JIKEAP_AP250MDV_MT7981_K5_NAND_*.bin` and `JIKEAP_AP250MD_MT7981_K5_NAND_*.bin`
+
+2. **Batch patching**
+   - Patches firmware for all models configured in `leds.ini`
+   - Preserves original filenames
+   - Runs `fix_led.py` without `--board` parameter to process all boards in batch mode
+
+3. **Publishes to GitHub Releases**
+   - Automatically creates new version releases
+   - Includes all patched firmware files (excludes original firmware)
+   - Provides detailed installation instructions
+
+### Trigger Methods
+
+- **Automatic**: Daily at 02:00 UTC (scheduled via cron)
+- **Tag Trigger**: Automatically triggered when creating tags starting with `v` (e.g., `v1.0.0`)
+- **Manual**: Via `workflow_dispatch` in GitHub Actions UI
+
+### Key Implementation Details
+
+- Version extraction from firmware filenames using pattern `\d+\.\d+_\d{10}` (e.g., `8.1_2025102100`)
+- File filtering using `*-JIKEAP_AP250MD*.bin` pattern to exclude original firmware files
+- Error handling for failed downloads with exit codes and file existence checks
+- Release notes generation with installation warnings and supported model list

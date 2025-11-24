@@ -396,33 +396,6 @@ FIT (Flattened Image Tree) 是 U-Boot 使用的镜像格式：
    - 说明机型名称和测试情况
    - 提供必要的硬件信息
 
-### 自动发布系统
-
-本仓库包含自动化工作流（`.github/workflows/release.yml`），用于：
-
-1. **自动下载最新固件**
-   - 每天自动检查 http://file.cnrouter.com/index.php/Index/apbeta.html
-   - 下载 `JIKEAP_AP250MDV_MT7981_K5_NAND_*.bin` 和 `JIKEAP_AP250MD_MT7981_K5_NAND_*.bin`
-
-2. **批量打补丁**
-   - 为 `leds.ini` 中所有配置的机型打补丁
-   - 保持原始文件名
-
-3. **发布到 GitHub Releases**
-   - 自动创建新版本发布
-   - 包含所有打补丁后的固件文件
-   - 附带详细的安装说明
-
-#### 触发方式
-
-- **自动触发**：每天 UTC 时间 2:00 AM（北京时间 10:00 AM）
-- **Tag 触发**：创建以 `v` 开头的标签时自动触发（如 `v1.0.0`）
-- **手动触发**：在 GitHub Actions 页面手动运行 "Auto Release Patched Firmware" 工作流
-
-#### 下载已发布的固件
-
-访问 [Releases 页面](https://github.com/NewFuture/jike-led/releases) 下载最新的打补丁固件。
-
 ### 许可证
 
 本项目采用 [Apache License 2.0](LICENSE) 许可证。
@@ -778,33 +751,6 @@ Contributions welcome! To add new model configuration:
 3. **Submit Pull Request**
    - Describe model name and test results
    - Provide necessary hardware information
-
-### Automated Release System
-
-This repository includes an automated workflow (`.github/workflows/release.yml`) that:
-
-1. **Automatically downloads latest firmware**
-   - Checks http://file.cnrouter.com/index.php/Index/apbeta.html daily
-   - Downloads `JIKEAP_AP250MDV_MT7981_K5_NAND_*.bin` and `JIKEAP_AP250MD_MT7981_K5_NAND_*.bin`
-
-2. **Batch patching**
-   - Patches firmware for all models configured in `leds.ini`
-   - Preserves original filenames
-
-3. **Publishes to GitHub Releases**
-   - Automatically creates new version releases
-   - Includes all patched firmware files
-   - Provides detailed installation instructions
-
-#### Trigger Methods
-
-- **Automatic**: Daily at 2:00 AM UTC (10:00 AM Beijing Time)
-- **Tag Trigger**: Automatically triggered when creating tags starting with `v` (e.g., `v1.0.0`)
-- **Manual**: Run "Auto Release Patched Firmware" workflow from GitHub Actions page
-
-#### Download Pre-patched Firmware
-
-Visit the [Releases page](https://github.com/NewFuture/jike-led/releases) to download the latest patched firmware.
 
 ### License
 
