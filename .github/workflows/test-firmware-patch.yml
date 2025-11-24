@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      firmware_url:
+        description: 'Firmware URL to download and test'
+        required: false
+        default: 'http://file.cnrouter.com/upload/test/%E9%9B%86%E5%AE%A2AP_MTK_MT7981_WIFI6/JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin'
+        type: string
 
 jobs:
   test-patch:
@@ -23,7 +29,9 @@ jobs:
     - name: Download test firmware
       run: |
         echo "Downloading test firmware..."
-        curl -L -o test_firmware.bin "http://file.cnrouter.com/upload/test/%E9%9B%86%E5%AE%A2AP_MTK_MT7981_WIFI6/JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin"
+        FIRMWARE_URL="${{ github.event.inputs.firmware_url || 'http://file.cnrouter.com/upload/test/%E9%9B%86%E5%AE%A2AP_MTK_MT7981_WIFI6/JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin' }}"
+        echo "URL: $FIRMWARE_URL"
+        curl -L -o test_firmware.bin "$FIRMWARE_URL"
         ls -lh test_firmware.bin
     
     - name: List DTBs in firmware
