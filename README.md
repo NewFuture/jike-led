@@ -8,11 +8,29 @@
 
 通用 DTB LED / 属性补丁脚本，通过一个 [leds.ini](leds.ini) 配置文件描述多型号的 `/leds/*:gpios` 映射。
 
-### 功能
 
-- 扫描固件镜像中的所有 DTB（magic `0xD00DFEED`）。
-- 按 INI 配置中给出的规则修改 `/leds/<name>:gpios` 的第二个 u32（保持 DTB 尺寸不变）。
-- 自动重新计算被修改 DTB 的 crc32 / sha1，并在外层 FIT DTB 中更新对应 `hash-*` 节点的 `value` 字段。
+## 基本用法
+
+下载仓库然后`python3 fix_led.py firmware.bin` (firmware.bin 换成要修改的固件名)
+
+### 高级用法
+假设当前目录有固件文件 `firmware.bin`，并在同级目录准备好 `leds.ini`：
+
+```bash
+# 不指定机型：批量生成 INI 中所有机型的固件（推荐）
+python3 fix_led.py firmware.bin
+# 这会为每个机型生成对应的固件文件，例如：
+# komi-a31-firmware.bin
+# fur602-firmware.bin
+# 360t7-firmware.bin
+# ... (所有配置的机型)
+
+# 明确指定单个机型（board），只生成该机型的固件
+python3 fix_led.py firmware.bin -b komi-a31
+
+# 或者带上长参数形式
+python3 fix_led.py firmware.bin --board komi-a31
+```
 
 ### 配置文件：`leds.ini`
 
@@ -37,25 +55,6 @@ red   = 34
 - 所有修改都在原地进行，不会改变 DTB 长度，也不会移动其它数据。
 - 支持使用 `;` 或 `#` 作为注释符号。
 
-### 基本用法
-
-假设当前目录有固件文件 `firmware.bin`，并在同级目录准备好 `leds.ini`：
-
-```bash
-# 不指定机型：批量生成 INI 中所有机型的固件（推荐）
-python3 fix_led.py firmware.bin
-# 这会为每个机型生成对应的固件文件，例如：
-# komi-a31-firmware.bin
-# fur602-firmware.bin
-# 360t7-firmware.bin
-# ... (所有配置的机型)
-
-# 明确指定单个机型（board），只生成该机型的固件
-python3 fix_led.py firmware.bin -b komi-a31
-
-# 或者带上长参数形式
-python3 fix_led.py firmware.bin --board komi-a31
-```
 
 输出文件名默认是：
 
@@ -102,8 +101,16 @@ python3 fix_led.py firmware.bin -b komi-a31 --no-fit-hash -o test.bin
 
 > 注意：关闭 hash 更新后，U-Boot 可能因为校验失败而拒绝从该固件启动，只适合做对比和测试用。
 
+### 功能说明
+
+- 扫描固件镜像中的所有 DTB（magic `0xD00DFEED`）。
+- 按 INI 配置中给出的规则修改 `/leds/<name>:gpios` 的第二个 u32（保持 DTB 尺寸不变）。
+- 自动重新计算被修改 DTB 的 crc32 / sha1，并在外层 FIT DTB 中更新对应 `hash-*` 节点的 `value` 字段。
+
 ### 小提示
 
 - 如果某个 board section 没有写 `dtb_index`，脚本会尝试在所有 DTB 中找到包含对应 `/leds/*` 节点的那一个；如果找不到会给出 warning。
 - 映射规则里 `from` 的值和固件中原始 gpios 第二个 u32 不一致时，该 LED 不会被修改，并打印 `No change / mismatch` 提示，方便你确认原始值。
 - 当前脚本专注于 LED gpios（三个 u32 的第二个值），如果以后需要支持更多类型的属性，可以再扩展 INI 语法和解析逻辑。
+
+
