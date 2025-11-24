@@ -17,8 +17,15 @@ from collections import defaultdict
 def fetch_file_list() -> List[str]:
     """Fetch list of mt7981 device tree files from bl-mt798x repository."""
     api_url = "https://api.github.com/repos/hanwckf/bl-mt798x/git/trees/master?recursive=1"
-    with urllib.request.urlopen(api_url) as response:
-        data = json.loads(response.read().decode())
+    try:
+        with urllib.request.urlopen(api_url) as response:
+            data = json.loads(response.read().decode())
+    except urllib.error.URLError as e:
+        print(f"Error: Failed to fetch file list from GitHub API: {e}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Failed to parse GitHub API response: {e}", file=sys.stderr)
+        sys.exit(1)
     
     mt7981_files = [
         item['path'] for item in data.get('tree', [])
@@ -36,8 +43,11 @@ def fetch_dts_content(file_path: str) -> str:
     try:
         with urllib.request.urlopen(raw_url) as response:
             return response.read().decode('utf-8', errors='ignore')
-    except Exception as e:
+    except urllib.error.URLError as e:
         print(f"Warning: Failed to fetch {file_path}: {e}", file=sys.stderr)
+        return ""
+    except UnicodeDecodeError as e:
+        print(f"Warning: Failed to decode {file_path}: {e}", file=sys.stderr)
         return ""
 
 
