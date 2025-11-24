@@ -44,10 +44,15 @@ red   = 13
 假设当前目录有固件文件 `firmware.bin`，并在同级目录准备好 `leds.ini`：
 
 ```bash
-# 使用 INI 中默认的第一个机型
+# 不指定机型：批量生成 INI 中所有机型的固件（推荐）
 python3 fix_led.py firmware.bin
+# 这会为每个机型生成对应的固件文件，例如：
+# komi-a31-firmware.bin
+# fur602-firmware.bin
+# 360t7-firmware.bin
+# ... (所有配置的机型)
 
-# 明确指定机型（board），等价于脚本的 --board
+# 明确指定单个机型（board），只生成该机型的固件
 python3 fix_led.py firmware.bin -b komi-a31
 
 # 或者带上长参数形式
@@ -56,12 +61,16 @@ python3 fix_led.py firmware.bin --board komi-a31
 
 输出文件名默认是：
 
-- `<board>-<原文件名>`，例如：`komi-a31-firmware.bin`
+- 批量模式（不指定 `-b`）：为每个机型生成 `<board>-<原文件名>`，例如：`komi-a31-firmware.bin`
+- 单机型模式（指定 `-b`）：生成 `<board>-<原文件名>`，例如：`komi-a31-firmware.bin`
 
-你也可以用 `-o/--output` 自定义输出路径：
+你也可以用 `-o/--output` 自定义输出路径（仅在指定单个机型时可用）：
 
 ```bash
 python3 fix_led.py firmware.bin -b komi-a31 -o firmware-komi-a31-fixed.bin
+
+# 注意：批量模式下不能使用 -o 参数
+# python3 fix_led.py firmware.bin -o output.bin  # ❌ 会报错
 ```
 
 ### 使用自定义 INI 路径

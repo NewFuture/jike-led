@@ -22,7 +22,10 @@
 
     调用示例:
 
-        # 使用 INI 中的指定 机型
+        # 批量处理：为 INI 中所有机型生成固件（不指定 --board）
+        python3 fix_led.py firmware.bin --config leds.ini
+        
+        # 单机型处理：仅处理指定机型
         python3 fix_led.py firmware.bin --config leds.ini --board komi-a31
 """
 from __future__ import annotations
