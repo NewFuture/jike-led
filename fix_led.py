@@ -22,7 +22,10 @@
 
     调用示例:
 
-        # 使用 INI 中的指定 机型
+        # 批量处理：为 INI 中所有机型生成固件（不指定 --board）
+        python3 fix_led.py firmware.bin --config leds.ini
+        
+        # 单机型处理：仅处理指定机型
         python3 fix_led.py firmware.bin --config leds.ini --board komi-a31
 """
 from __future__ import annotations
@@ -287,30 +290,21 @@ class PatchConfig:
     targets: List[TargetConfig]
 
 
-def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
-    """从 INI 文件读取配置。
-
-    约定: 每个 section 表示一个 profile（型号），例如 [komi-a31]。
-    - dtb_index: 可选，整数。
-    - 其它键: 视为 LED 名，值为目标值，例如 "8" 或 "0x8"。
+def load_single_profile_config(cp: configparser.ConfigParser, profile: str) -> PatchConfig:
+    """从 ConfigParser 对象中加载单个 profile 的配置。
     
-    注意: 使用 inline_comment_prefixes 以支持 INI 文件中的内联注释（如：green = 8 ; 注释 或 green = 8 # 注释）。
+    参数:
+        cp: ConfigParser 对象
+        profile: profile 名称（section 名）
+    
+    返回:
+        PatchConfig 对象
     """
-    cp = configparser.ConfigParser(inline_comment_prefixes=(';', '#'))
-    with open(path, "r", encoding="utf-8") as f:
-        cp.read_file(f)
-
-    if not cp.sections():
-        raise ValueError("INI config has no sections")
-
-    if profile is None:
-        # 若未指定 profile，则默认使用第一个 section
-        profile = cp.sections()[0]
     if profile not in cp:
         raise ValueError(f"Profile '{profile}' not found in INI config")
-
+    
     sect = cp[profile]
-
+    
     # 解析 dtb_index
     dtb_index: Optional[int]
     if "dtb_index" in sect:
@@ -320,7 +314,7 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
             raise ValueError(f"Invalid dtb_index in profile '{profile}': {e}")
     else:
         dtb_index = None
-
+    
     mappings: List[MappingRule] = []
     for key, value in sect.items():
         if key == "dtb_index":
@@ -346,89 +340,74 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
                 second_to=v_to,
             )
         )
-
+    
     if not mappings:
         raise ValueError(f"Profile '{profile}' has no LED mappings")
-
+    
     target = TargetConfig(dtb_index=dtb_index, mappings=mappings)
     return PatchConfig(profile=profile, targets=[target])
+
+
+def load_ini_config(path: str, profile: Optional[str]) -> List[PatchConfig]:
+    """从 INI 文件读取配置。
+
+    约定: 每个 section 表示一个 profile（型号），例如 [komi-a31]。
+    - dtb_index: 可选，整数。
+    - 其它键: 视为 LED 名，值为目标值，例如 "8" 或 "0x8"。
+    
+    注意: 使用 inline_comment_prefixes 以支持 INI 文件中的内联注释（如：green = 8 ; 注释 或 green = 8 # 注释）。
+    
+    参数:
+        path: INI 配置文件路径
+        profile: 指定的 profile 名称，如果为 None 则加载所有 profiles
+    
+    返回:
+        PatchConfig 对象列表
+    """
+    cp = configparser.ConfigParser(inline_comment_prefixes=(';', '#'))
+    with open(path, "r", encoding="utf-8") as f:
+        cp.read_file(f)
+
+    if not cp.sections():
+        raise ValueError("INI config has no sections")
+
+    if profile is None:
+        # 若未指定 profile，则加载所有 profiles
+        configs = []
+        for section in cp.sections():
+            try:
+                cfg = load_single_profile_config(cp, section)
+                configs.append(cfg)
+            except ValueError as e:
+                print(f"Warning: Skipping invalid profile '{section}': {e}. Processing will continue with other profiles.", file=sys.stderr)
+        if not configs:
+            raise ValueError("No valid profiles found in INI config")
+        return configs
+    else:
+        # 若指定了 profile，则只加载该 profile
+        return [load_single_profile_config(cp, profile)]
 
 
 # ------------------------- 主逻辑 ---------------------------------------------
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(
-        description="Generic DTB patcher driven by INI config (LED gpios, etc.)"
-    )
-    ap.add_argument("firmware", help="Input firmware .bin")
-    ap.add_argument(
-        "-o",
-        "--output",
-        help="Output file (default: <profile>-<basename> from config)",
-    )
-    ap.add_argument(
-        "--dtb-index",
-        type=int,
-        default=None,
-        help="(Legacy) force DTB index when config omits dtb_index; otherwise use config dtb_index / auto-detect",
-    )
-    ap.add_argument(
-        "--config",
-        default="leds.ini",
-        help="INI config file with profiles (default: leds.ini)",
-    )
-    ap.add_argument(
-        "-b",
-        "--board",
-        dest="profile",
-        required=False,
-        help="Board/profile name (INI section name, e.g. komi-a31)",
-    )
-    ap.add_argument(
-        "--list",
-        action="store_true",
-        help="List DTBs and LED nodes then exit",
-    )
-    ap.add_argument(
-        "--no-fit-hash",
-        action="store_true",
-        help="Do NOT auto-update FIT image hash values for modified fdt image",
-    )
-    args = ap.parse_args()
-
-    with open(args.firmware, "rb") as f:
-        data = bytearray(f.read())
-
-    dtbs = scan_dtbs(data)
-    if not dtbs:
-        print("No DTB found", file=sys.stderr)
-        return 1
-
-    # 列表模式: 打印 DTB 和 /leds 节点信息
-    led_presence = []  # list[(idx, has_green)]
-    for i, (off, hdr) in enumerate(dtbs):
-        props = parse_properties(data, off, hdr)
-        has_green = any(p.node_path.endswith("/green") for p in props)
-        led_presence.append((i, has_green))
-        if args.list:
-            led_nodes = sorted(
-                set(p.node_path for p in props if p.node_path.startswith("/leds"))
-            )
-            print(
-                f"[DTB {i}] offset=0x{off:X} total={hdr.totalsize} "
-                f"LED nodes: {', '.join(led_nodes) if led_nodes else '-'}"
-            )
-    if args.list:
-        return 0
-
-    # 始终按 INI 解析；若未指定 --config，则默认使用 leds.ini
-    try:
-        cfg = load_ini_config(args.config, getattr(args, "profile", None))
-    except Exception as e:
-        print(f"Failed to load config {args.config}: {e}", file=sys.stderr)
-        return 1
-
+def process_single_profile(
+    cfg: PatchConfig, 
+    data: bytearray, 
+    dtbs: List[Tuple[int, DtbHeader]], 
+    args: argparse.Namespace
+) -> Tuple[int, List[str]]:
+    """处理单个 profile，返回修改次数和摘要行列表。
+    
+    参数:
+        cfg: PatchConfig 配置对象
+        data: 固件数据 (会被修改)
+        dtbs: DTB 列表
+        args: 命令行参数
+    
+    返回:
+        (total_changes, summary_lines)
+    """
     total_changes = 0
     # (dtb_index, old_crc_be4, new_crc_be4, old_sha1, new_sha1)
     modified_dtbs_digests: List[Tuple[int, bytes, bytes, bytes, bytes]] = []
@@ -543,10 +522,6 @@ def main() -> int:
                 print(line)
                 summary_lines.append(line)
 
-    if total_changes == 0:
-        print("No changes applied (all values already set to target values or properties not found)")
-        return 2
-
     # 更新 FIT hash
     if modified_dtbs_digests and not args.no_fit_hash:
         fit = detect_fit(dtbs, data)
@@ -593,25 +568,159 @@ def main() -> int:
                 print(line)
                 summary_lines.append(line)
 
-    # 输出文件名
-    if args.output:
-        out_path = args.output
-    else:
-        base_name = os.path.basename(args.firmware)
-        out_path = f"{cfg.profile}-{base_name}"
+    return total_changes, summary_lines
 
-    if os.path.abspath(out_path) == os.path.abspath(args.firmware):
-        print("Refusing to overwrite input (choose different -o)", file=sys.stderr)
+
+def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Generic DTB patcher driven by INI config (LED gpios, etc.)"
+    )
+    ap.add_argument("firmware", help="Input firmware .bin")
+    ap.add_argument(
+        "-o",
+        "--output",
+        help="Output file (default: <profile>-<basename> from config). Cannot be used when processing multiple boards.",
+    )
+    ap.add_argument(
+        "--dtb-index",
+        type=int,
+        default=None,
+        help="(Legacy) force DTB index when config omits dtb_index; otherwise use config dtb_index / auto-detect",
+    )
+    ap.add_argument(
+        "--config",
+        default="leds.ini",
+        help="INI config file with profiles (default: leds.ini)",
+    )
+    ap.add_argument(
+        "-b",
+        "--board",
+        dest="profile",
+        required=False,
+        help="Board/profile name (INI section name, e.g. komi-a31). If not specified, all boards will be processed.",
+    )
+    ap.add_argument(
+        "--list",
+        action="store_true",
+        help="List DTBs and LED nodes then exit",
+    )
+    ap.add_argument(
+        "--no-fit-hash",
+        action="store_true",
+        help="Do NOT auto-update FIT image hash values for modified fdt image",
+    )
+    args = ap.parse_args()
+
+    with open(args.firmware, "rb") as f:
+        original_data = bytearray(f.read())
+
+    dtbs = scan_dtbs(original_data)
+    if not dtbs:
+        print("No DTB found", file=sys.stderr)
         return 1
 
-    with open(out_path, "wb") as f:
-        f.write(data)
-    print(f"Wrote patched firmware: {out_path} (changes: {total_changes})")
-    if summary_lines:
-        print("Summary:")
-        for line in summary_lines:
-            print("  " + line)
-    return 0
+    # 列表模式: 打印 DTB 和 /leds 节点信息
+    led_presence = []  # list[(idx, has_green)]
+    for i, (off, hdr) in enumerate(dtbs):
+        props = parse_properties(original_data, off, hdr)
+        has_green = any(p.node_path.endswith("/green") for p in props)
+        led_presence.append((i, has_green))
+        if args.list:
+            led_nodes = sorted(
+                set(p.node_path for p in props if p.node_path.startswith("/leds"))
+            )
+            print(
+                f"[DTB {i}] offset=0x{off:X} total={hdr.totalsize} "
+                f"LED nodes: {', '.join(led_nodes) if led_nodes else '-'}"
+            )
+    if args.list:
+        return 0
+
+    # 始终按 INI 解析；若未指定 --config，则默认使用 leds.ini
+    try:
+        configs = load_ini_config(args.config, getattr(args, "profile", None))
+    except Exception as e:
+        print(f"Failed to load config {args.config}: {e}", file=sys.stderr)
+        return 1
+
+    # 如果没有指定 board 但指定了 output，则报错
+    if len(configs) > 1 and args.output:
+        print(
+            "Error: Cannot specify --output when processing multiple boards. "
+            "Each board will generate its own output file.",
+            file=sys.stderr
+        )
+        return 1
+
+    # 处理所有 profiles
+    all_success = True
+    generated_files = []
+    skipped_boards = []  # Track boards that were skipped due to no changes
+    
+    for cfg in configs:
+        print(f"\n{'='*60}")
+        print(f"Processing board: {cfg.profile}")
+        print(f"{'='*60}")
+        
+        # 为每个 profile 创建独立的数据副本
+        data = bytearray(original_data)
+        
+        total_changes, summary_lines = process_single_profile(cfg, data, dtbs, args)
+        
+        if total_changes == 0:
+            print(f"No changes applied for {cfg.profile} (all values already set to target values or properties not found)")
+            skipped_boards.append(cfg.profile)
+            # 如果只处理一个 profile，则返回错误码
+            if len(configs) == 1:
+                return 2
+            # 如果处理多个 profiles，继续处理下一个
+            continue
+
+        # 输出文件名
+        if args.output:
+            out_path = args.output
+        else:
+            base_name = os.path.basename(args.firmware)
+            out_path = f"{cfg.profile}-{base_name}"
+
+        if os.path.abspath(out_path) == os.path.abspath(args.firmware):
+            print(f"Error: Refusing to overwrite input for {cfg.profile} (choose different -o)", file=sys.stderr)
+            all_success = False
+            continue
+
+        try:
+            with open(out_path, "wb") as f:
+                f.write(data)
+            print(f"Wrote patched firmware: {out_path} (changes: {total_changes})")
+            generated_files.append(out_path)
+            if summary_lines:
+                print("Summary:")
+                for line in summary_lines:
+                    print("  " + line)
+        except Exception as e:
+            print(f"Error writing output for {cfg.profile}: {e}", file=sys.stderr)
+            all_success = False
+
+    # 最终总结
+    if len(configs) > 1:
+        print(f"\n{'='*60}")
+        print(f"All boards processing completed")
+        print(f"{'='*60}")
+        print(f"Total boards processed: {len(configs)}")
+        print(f"Firmware files generated: {len(generated_files)}")
+        if skipped_boards:
+            print(f"Boards skipped (no changes needed): {len(skipped_boards)}")
+            for board in skipped_boards:
+                print(f"  - {board}")
+        if generated_files:
+            print("\nGenerated files:")
+            for f in generated_files:
+                print(f"  - {f}")
+
+    # Return success only if all operations succeeded and at least one file was generated
+    # If all boards were skipped but no errors occurred, also return success (exit code 0)
+    # Return success if all operations succeeded (files generated or all skipped)
+    return 0 if all_success else 1
 
 
 if __name__ == "__main__":  # pragma: no cover

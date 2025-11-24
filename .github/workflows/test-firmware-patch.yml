@@ -1,0 +1,77 @@
+name: Test Firmware Patch
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      firmware_url:
+        description: 'Firmware URL to download and test'
+        required: false
+        default: 'http://file.cnrouter.com/upload/test/%E9%9B%86%E5%AE%A2AP_MTK_MT7981_WIFI6/JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin'
+        type: string
+
+jobs:
+  test-patch:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Download test firmware
+      run: |
+        echo "Downloading test firmware..."
+        FIRMWARE_URL="${{ github.event.inputs.firmware_url || 'http://file.cnrouter.com/upload/test/%E9%9B%86%E5%AE%A2AP_MTK_MT7981_WIFI6/JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin' }}"
+        echo "URL: $FIRMWARE_URL"
+        curl -L -o test_firmware.bin "$FIRMWARE_URL"
+        ls -lh test_firmware.bin
+    
+    - name: List DTBs in firmware
+      run: |
+        echo "Listing DTBs and LED nodes in firmware..."
+        python3 fix_led.py test_firmware.bin --list
+    
+    - name: Patch firmware for all boards
+      run: |
+        echo "Patching firmware for all boards..."
+        python3 fix_led.py test_firmware.bin
+        echo ""
+        echo "Generated files:"
+        ls -lh *test_firmware.bin 2>/dev/null || echo "No patched files generated"
+    
+    - name: Upload patched firmware files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: patched-firmware-files
+        path: |
+          *test_firmware.bin
+          !test_firmware.bin
+        if-no-files-found: warn
+        retention-days: 30
+    
+    - name: Test single board patch
+      run: |
+        echo "Testing single board patch (komi-a31)..."
+        python3 fix_led.py test_firmware.bin -b komi-a31 -o komi-a31-test.bin
+        if [ -f komi-a31-test.bin ]; then
+          echo "Single board patch successful"
+          ls -lh komi-a31-test.bin
+        fi
+    
+    - name: Upload single board test
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: single-board-test
+        path: komi-a31-test.bin
+        if-no-files-found: warn
+        retention-days: 7
