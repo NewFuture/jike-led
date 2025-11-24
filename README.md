@@ -1,10 +1,12 @@
 # DTB LED Patch Scripts
 
-本目录主要包含用于修改固件中 DTB (Device Tree Blob) 的小工具脚本，修复不同机型的 LED 映射等问题。
+修改集客Gecoos AP固件中 DTB (Device Tree Blob) LED 的小工具脚本，修复不同机型的 LED 映射等问题。
 
-## fix_led.py
+> [!NOTE]
+> 1. 此工具未充分测试,请谨慎使用。
+> 2. 修改后的固件缺少完整签名，只能通过uboot上传，不能直接升级写入。
 
-通用 DTB LED / 属性补丁脚本，通过一个 INI 配置文件描述多型号的 `/leds/*:gpios` 映射，并在修改 DTB 后自动更新外层 FIT 镜像中的 hash（crc32 + sha1），确保 U-Boot 校验通过。
+通用 DTB LED / 属性补丁脚本，通过一个 [leds.ini](leds.ini) 配置文件描述多型号的 `/leds/*:gpios` 映射。
 
 ### 功能
 
@@ -16,6 +18,7 @@
 
 脚本默认在当前工作目录查找 `leds.ini`，你也可以用 `--config` 指定其它路径。配置文件使用 INI 格式，每个 section 表示一个机型（board）：
 
+集客固件只有红绿两个灯可以配置,可在ini中定义对应的引脚
 ```ini
 [komi-a31]
 # 可选，指定要修改的 DTB 索引（从 0 开始）；省略时自动按节点匹配
@@ -25,11 +28,6 @@
 green = 8
 # 映射到 /leds/red:gpios 的第二个 u32
 red   = 34
-
-[fur602]
-dtb_index = 1
-green = 8
-red   = 13
 ```
 
 规则说明：
