@@ -655,6 +655,7 @@ def main() -> int:
     # 处理所有 profiles
     all_success = True
     generated_files = []
+    skipped_boards = []  # Track boards that were skipped due to no changes
     
     for cfg in configs:
         print(f"\n{'='*60}")
@@ -668,6 +669,7 @@ def main() -> int:
         
         if total_changes == 0:
             print(f"No changes applied for {cfg.profile} (all values already set to target values or properties not found)")
+            skipped_boards.append(cfg.profile)
             # 如果只处理一个 profile，则返回错误码
             if len(configs) == 1:
                 return 2
@@ -706,15 +708,21 @@ def main() -> int:
         print(f"{'='*60}")
         print(f"Total boards processed: {len(configs)}")
         print(f"Firmware files generated: {len(generated_files)}")
+        if skipped_boards:
+            print(f"Boards skipped (no changes needed): {len(skipped_boards)}")
+            for board in skipped_boards:
+                print(f"  - {board}")
         if generated_files:
             print("\nGenerated files:")
             for f in generated_files:
                 print(f"  - {f}")
 
     # Return success only if all operations succeeded and at least one file was generated
+    # If all boards were skipped but no errors occurred, also return success (exit code 0)
     if not all_success:
         return 1
-    if len(generated_files) == 0:
+    if len(generated_files) == 0 and len(skipped_boards) == 0:
+        # No files generated and no boards skipped = something went wrong
         return 1
     return 0
 
