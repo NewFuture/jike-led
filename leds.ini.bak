@@ -1,0 +1,12 @@
+;机型映射 配置
+[komi-a31]; 机型名称
+dtb_index = 1 ; 可选：指定 DTB index，不写则自动匹配含 /leds/* 的 DTB
+; LED 名 = 原值->新值 （十进制或0x十六进制皆可）
+green  = 4->8           ; /leds/green  gpios 第二个 u32: 4 -> 8
+red    = 5->34          ; /leds/red    gpios 第二个 u32: 5 -> 34
+
+[fur602]
+; FUR602 机型映射
+dtb_index = 1
+green = 4->8
+red   = 5->13
