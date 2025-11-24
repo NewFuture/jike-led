@@ -1,0 +1,229 @@
+name: Auto Release Patched Firmware
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+  schedule:
+    # Run daily at 2 AM UTC to check for new firmware
+    - cron: '0 2 * * *'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Download and parse firmware list
+      id: download
+      run: |
+        echo "Downloading firmware list page..."
+        curl -s "http://file.cnrouter.com/index.php/Index/apbeta.html" > firmware_list.html
+        
+        # Extract firmware URLs and filenames for AP250MDV and AP250MD
+        echo "Extracting firmware URLs..."
+        
+        # Find AP250MDV firmware
+        AP250MDV_URL=$(grep -oP 'href="/upload/test/[^"]*JIKEAP_AP250MDV_MT7981_K5_NAND_[^"]*\.bin"' firmware_list.html | sed 's/href="//' | sed 's/"$//' | head -1)
+        if [ -n "$AP250MDV_URL" ]; then
+          AP250MDV_FILENAME=$(echo "$AP250MDV_URL" | grep -oP 'JIKEAP_AP250MDV_MT7981_K5_NAND_[^/]*\.bin$')
+          AP250MDV_FULL_URL="http://file.cnrouter.com${AP250MDV_URL}"
+          echo "ap250mdv_url=$AP250MDV_FULL_URL" >> $GITHUB_OUTPUT
+          echo "ap250mdv_filename=$AP250MDV_FILENAME" >> $GITHUB_OUTPUT
+          echo "Found AP250MDV: $AP250MDV_FILENAME"
+          echo "URL: $AP250MDV_FULL_URL"
+        fi
+        
+        # Find AP250MD firmware (without V)
+        AP250MD_URL=$(grep -oP 'href="/upload/test/[^"]*JIKEAP_AP250MD_MT7981_K5_NAND_[^"]*\.bin"' firmware_list.html | grep -v "AP250MDV" | sed 's/href="//' | sed 's/"$//' | head -1)
+        if [ -n "$AP250MD_URL" ]; then
+          AP250MD_FILENAME=$(echo "$AP250MD_URL" | grep -oP 'JIKEAP_AP250MD_MT7981_K5_NAND_[^/]*\.bin$')
+          AP250MD_FULL_URL="http://file.cnrouter.com${AP250MD_URL}"
+          echo "ap250md_url=$AP250MD_FULL_URL" >> $GITHUB_OUTPUT
+          echo "ap250md_filename=$AP250MD_FILENAME" >> $GITHUB_OUTPUT
+          echo "Found AP250MD: $AP250MD_FILENAME"
+          echo "URL: $AP250MD_FULL_URL"
+        fi
+        
+        # Check if we found any firmware
+        if [ -z "$AP250MDV_URL" ] && [ -z "$AP250MD_URL" ]; then
+          echo "Error: No firmware files found!"
+          exit 1
+        fi
+        
+        # Extract version/date for release tag
+        if [ -n "$AP250MDV_FILENAME" ]; then
+          VERSION=$(echo "$AP250MDV_FILENAME" | grep -oP '\d+\.\d+_\d{10}' | head -1)
+        elif [ -n "$AP250MD_FILENAME" ]; then
+          VERSION=$(echo "$AP250MD_FILENAME" | grep -oP '\d+\.\d+_\d{10}' | head -1)
+        fi
+        if [ -z "$VERSION" ]; then
+          echo "Error: Failed to extract firmware version from filename. Aborting release."
+          exit 1
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Release version: $VERSION"
+    
+    - name: Check if release already exists
+      run: |
+        if gh release view "v${{ steps.download.outputs.version }}" > /dev/null 2>&1; then
+          echo "Release v${{ steps.download.outputs.version }} already exists. Skipping workflow."
+          exit 0
+        fi
+    
+    - name: Download AP250MDV firmware
+      if: steps.download.outputs.ap250mdv_url != ''
+      run: |
+        echo "Downloading AP250MDV firmware..."
+        curl -L -o "${{ steps.download.outputs.ap250mdv_filename }}" "${{ steps.download.outputs.ap250mdv_url }}" || exit 1
+        if [ ! -f "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
+          echo "Error: Failed to download AP250MDV firmware file"
+          exit 1
+        fi
+        ls -lh "${{ steps.download.outputs.ap250mdv_filename }}"
+    
+    - name: Download AP250MD firmware
+      if: steps.download.outputs.ap250md_url != ''
+      run: |
+        echo "Downloading AP250MD firmware..."
+        curl -L -o "${{ steps.download.outputs.ap250md_filename }}" "${{ steps.download.outputs.ap250md_url }}" || exit 1
+        if [ ! -f "${{ steps.download.outputs.ap250md_filename }}" ]; then
+          echo "Error: Failed to download AP250MD firmware file"
+          exit 1
+        fi
+        ls -lh "${{ steps.download.outputs.ap250md_filename }}"
+    
+    - name: Patch AP250MDV firmware for all boards
+      if: steps.download.outputs.ap250mdv_filename != ''
+      run: |
+        echo "Patching AP250MDV firmware for all configured boards..."
+        python3 fix_led.py "${{ steps.download.outputs.ap250mdv_filename }}"
+        echo ""
+        echo "Generated patched files:"
+        ls -lh *"${{ steps.download.outputs.ap250mdv_filename }}" 2>/dev/null || echo "No patched files generated"
+    
+    - name: Patch AP250MD firmware for all boards
+      if: steps.download.outputs.ap250md_filename != ''
+      run: |
+        echo "Patching AP250MD firmware for all configured boards..."
+        python3 fix_led.py "${{ steps.download.outputs.ap250md_filename }}"
+        echo ""
+        echo "Generated patched files:"
+        ls -lh *"${{ steps.download.outputs.ap250md_filename }}" 2>/dev/null || echo "No patched files generated"
+    
+    - name: Prepare release files
+      id: prepare
+      run: |
+        echo "Preparing release files..."
+        mkdir -p release-files
+        
+        # Move all patched firmware files to release directory (exclude original firmware)
+        # Patched files have format: <board>-JIKEAP_AP250MD*.bin
+        # Note: The pattern "*-JIKEAP_AP250MD*.bin" intentionally matches both AP250MD and AP250MDV firmware files,
+        # since "AP250MDV" contains "AP250MD". This ensures both variants are included in the release.
+        find . -maxdepth 1 -type f -name "*-JIKEAP_AP250MD*.bin" -exec mv {} release-files/ \;
+        
+        echo "Files prepared for release:"
+        ls -lh release-files/
+        
+        # Count files
+        FILE_COUNT=$(ls -1 release-files/*.bin 2>/dev/null | wc -l)
+        echo "file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
+        echo "Total files: $FILE_COUNT"
+    
+    - name: Create Release
+      if: steps.prepare.outputs.file_count > 0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Set release tag and name
+        if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          TAG_NAME="${GITHUB_REF_NAME}"
+          RELEASE_NAME="Patched Firmware ${GITHUB_REF_NAME}"
+        else
+          TAG_NAME="v${{ steps.download.outputs.version }}"
+          RELEASE_NAME="Patched Firmware ${{ steps.download.outputs.version }}"
+        fi
+        
+        echo "Creating release: $TAG_NAME"
+        
+        # Create release notes
+        cat > release_notes.md << 'EOF'
+        ## Patched Firmware Release
+        
+        This release contains patched firmware files for various router models.
+        
+        ### Original Firmware Files
+        EOF
+        
+        if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
+          echo "- ${{ steps.download.outputs.ap250mdv_filename }}" >> release_notes.md
+        fi
+        if [ -n "${{ steps.download.outputs.ap250md_filename }}" ]; then
+          echo "- ${{ steps.download.outputs.ap250md_filename }}" >> release_notes.md
+        fi
+        
+        cat >> release_notes.md << 'EOF'
+        
+        ### Patched for Models
+        
+        Each firmware file has been patched for the following router models (as configured in `leds.ini`):
+        EOF
+        
+        # List all board profiles from leds.ini
+        grep '^\[' leds.ini | sed 's/\[/- /' | sed 's/\]//' >> release_notes.md
+        
+        cat >> release_notes.md << 'EOF'
+        
+        ### Installation Instructions
+        
+        ⚠️ **Important Warnings:**
+        1. Modified firmware lacks complete signature and can only be uploaded via U-Boot
+        2. Do NOT use direct upgrade method
+        3. Always backup your original firmware before flashing
+        4. Flashing incorrect firmware may brick your device
+        
+        ### Usage
+        
+        1. Download the firmware file matching your router model (filename starts with your model name)
+        2. Upload via U-Boot recovery mode
+        3. Refer to the [README](https://github.com/NewFuture/jike-led) for detailed instructions
+        
+        ### Source
+        
+        Original firmware downloaded from: http://file.cnrouter.com/index.php/Index/apbeta.html
+        EOF
+        
+        # Create or update release
+        if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+          echo "Release $TAG_NAME already exists, updating..."
+          gh release edit "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes-file release_notes.md
+          gh release upload "$TAG_NAME" release-files/*.bin --clobber
+        else
+          echo "Creating new release $TAG_NAME..."
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes-file release_notes.md \
+            release-files/*.bin
+        fi
+    
+    - name: Upload artifacts (backup)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: patched-firmware-${{ steps.download.outputs.version || 'unknown' }}
+        path: release-files/
+        if-no-files-found: warn
+        retention-days: 30

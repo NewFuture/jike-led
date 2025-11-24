@@ -28,6 +28,19 @@
 
 ### 快速开始
 
+#### 方式 1: 使用自动发布的固件（推荐）
+
+> [!TIP]
+> 本仓库会自动从官方网站下载最新固件并为所有支持的机型打补丁，发布到 [GitHub Releases](https://github.com/NewFuture/jike-led/releases)。
+
+1. **访问 [Releases 页面](https://github.com/NewFuture/jike-led/releases)**
+2. **下载与你的路由器型号匹配的固件**
+   - 文件名格式：`<机型名>-JIKEAP_AP250MD*.bin`
+   - 例如：`konka_komi-a31-JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin`
+3. **通过 U-Boot 刷入固件**
+
+#### 方式 2: 手动打补丁
+
 1. **克隆或下载本仓库**
    ```bash
    git clone https://github.com/NewFuture/jike-led.git
@@ -419,6 +432,19 @@ A utility script to modify LED configurations in DTB (Device Tree Blob) within J
 - No external dependencies, uses Python standard library only
 
 ### Quick Start
+
+#### Option 1: Use Automated Releases (Recommended)
+
+> [!TIP]
+> This repository automatically downloads the latest firmware from the official website and patches it for all supported models, publishing to [GitHub Releases](https://github.com/NewFuture/jike-led/releases).
+
+1. **Visit the [Releases page](https://github.com/NewFuture/jike-led/releases)**
+2. **Download the firmware matching your router model**
+   - Filename format: `<model-name>-JIKEAP_AP250MD*.bin`
+   - Example: `konka_komi-a31-JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin`
+3. **Flash via U-Boot recovery mode**
+
+#### Option 2: Manual Patching
 
 1. **Clone or download this repository**
    ```bash
