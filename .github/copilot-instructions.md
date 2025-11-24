@@ -20,15 +20,15 @@ This file contains special-purpose firmware tooling. When editing it, Copilot sh
   ```ini
   [komi-a31]
   dtb_index = 1          ; optional, 0-based index of DTB to patch
-  green = 4->8           ; maps to /leds/green:gpios second u32
-  red   = 5->34          ; maps to /leds/red:gpios second u32
+  green = 8              ; maps to /leds/green:gpios second u32
+  red   = 34             ; maps to /leds/red:gpios second u32
   ```
 
 - Any key except `dtb_index` is treated as an LED name:
   - Node path: `/leds/<name>`
   - Property: `gpios`
   - Kind: `"u32_triplet"`
-  - Value format: `<from>-><to>`; supports decimal or `0x` hex.
+  - Value format: `<target_value>`; supports decimal or `0x` hex (e.g., `8` or `0x8`).
 
 ## CLI Contract
 
@@ -81,7 +81,6 @@ When Copilot suggests changes to this file, it must respect:
      - The check `if os.path.abspath(out_path) == os.path.abspath(args.firmware)` must remain.
    - Warnings should be explicit when:
      - A node/property is missing.
-     - Expected `from` value doesn't match the actual gpios second cell.
      - No matching FIT hash nodes are found.
 
 ## What Copilot May Help With
