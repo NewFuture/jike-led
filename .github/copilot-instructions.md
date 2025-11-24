@@ -111,7 +111,7 @@ This repository includes an automated workflow (`.github/workflows/release.yml`)
    - Preserves original filenames
    - Runs `fix_led.py` without `--board` parameter to process all boards in batch mode
 
-3. **Publishes to GitHub Releases**
+3. **publishes to GitHub Releases**
    - Automatically creates new version releases
    - Includes all patched firmware files (excludes original firmware)
    - Provides detailed installation instructions

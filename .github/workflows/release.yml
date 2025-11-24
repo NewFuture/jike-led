@@ -122,6 +122,8 @@ jobs:
         
         # Move all patched firmware files to release directory (exclude original firmware)
         # Patched files have format: <board>-JIKEAP_AP250MD*.bin
+        # Note: The pattern "*-JIKEAP_AP250MD*.bin" intentionally matches both AP250MD and AP250MDV firmware files,
+        # since "AP250MDV" contains "AP250MD". This ensures both variants are included in the release.
         find . -maxdepth 1 -type f -name "*-JIKEAP_AP250MD*.bin" -exec mv {} release-files/ \;
         
         echo "Files prepared for release:"
@@ -138,8 +140,13 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Set release tag and name
-        TAG_NAME="v${{ steps.download.outputs.version }}"
-        RELEASE_NAME="Patched Firmware ${{ steps.download.outputs.version }}"
+        if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+          TAG_NAME="${GITHUB_REF_NAME}"
+          RELEASE_NAME="Patched Firmware ${GITHUB_REF_NAME}"
+        else
+          TAG_NAME="v${{ steps.download.outputs.version }}"
+          RELEASE_NAME="Patched Firmware ${{ steps.download.outputs.version }}"
+        fi
         
         echo "Creating release: $TAG_NAME"
         
@@ -209,7 +216,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: patched-firmware-${{ steps.download.outputs.version }}
+        name: patched-firmware-${{ steps.download.outputs.version || 'unknown' }}
         path: release-files/
         if-no-files-found: warn
         retention-days: 30
