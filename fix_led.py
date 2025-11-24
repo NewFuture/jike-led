@@ -379,7 +379,7 @@ def load_ini_config(path: str, profile: Optional[str]) -> List[PatchConfig]:
                 cfg = load_single_profile_config(cp, section)
                 configs.append(cfg)
             except ValueError as e:
-                print(f"Warning: Skipping profile '{section}': {e}", file=sys.stderr)
+                print(f"Warning: Skipping invalid profile '{section}': {e}. Processing will continue with other profiles.", file=sys.stderr)
         if not configs:
             raise ValueError("No valid profiles found in INI config")
         return configs
@@ -395,7 +395,7 @@ def process_single_profile(
     cfg: PatchConfig, 
     data: bytearray, 
     dtbs: List[Tuple[int, DtbHeader]], 
-    args
+    args: argparse.Namespace
 ) -> Tuple[int, List[str]]:
     """处理单个 profile，返回修改次数和摘要行列表。
     
@@ -711,7 +711,12 @@ def main() -> int:
             for f in generated_files:
                 print(f"  - {f}")
 
-    return 0 if all_success and len(generated_files) > 0 else 1
+    # Return success only if all operations succeeded and at least one file was generated
+    if not all_success:
+        return 1
+    if len(generated_files) == 0:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
