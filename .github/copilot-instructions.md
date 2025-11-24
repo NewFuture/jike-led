@@ -4,7 +4,7 @@ This file contains special-purpose firmware tooling. When editing it, Copilot sh
 
 ## Purpose
 
-- `fix_led.py` is a **generic DTB patcher** for router firmware images.
+- `fix_led.py` is a generic DTB patcher for router firmware images.
 - It:
   - Scans a firmware `.bin` file for DTB (FDT) blobs (`0xD00DFEED` magic).
   - Modifies `/leds/*:gpios` properties **in-place**, only changing the second `u32` of a 3x `u32` array.
