@@ -74,6 +74,13 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Release version: $VERSION"
     
+    - name: Check if release already exists
+      run: |
+        if gh release view "v${{ steps.download.outputs.version }}" > /dev/null 2>&1; then
+          echo "Release v${{ steps.download.outputs.version }} already exists. Skipping workflow."
+          exit 0
+        fi
+    
     - name: Download AP250MDV firmware
       if: steps.download.outputs.ap250mdv_url != ''
       run: |
