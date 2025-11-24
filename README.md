@@ -2,6 +2,30 @@
 
 本目录主要包含用于修改固件中 DTB (Device Tree Blob) 的小工具脚本，修复不同机型的 LED 映射等问题。
 
+## extract_mt7981_leds.py
+
+自动从 [bl-mt798x 仓库](https://github.com/hanwckf/bl-mt798x) 提取 MT7981 芯片各型号的 LED GPIO 配置并更新到 `leds.ini` 文件。
+
+### 功能
+
+- 自动获取 bl-mt798x 仓库中所有 mt7981 设备树文件列表
+- 解析每个设备树文件，提取 LED GPIO 信息
+- 生成或更新 `leds.ini` 配置文件，包含所有发现的型号
+
+### 使用方法
+
+```bash
+# 运行脚本，自动更新 leds.ini
+python3 extract_mt7981_leds.py
+```
+
+脚本会：
+1. 从 GitHub 获取 mt7981 设备树文件列表
+2. 逐个解析，提取 LED 配置（颜色和 GPIO 编号）
+3. 生成 `leds.ini` 文件，每个型号一个 section
+
+生成的配置格式为 `led_color = gpio_num->gpio_num`，初始设置为恒等映射。如果你需要从其他固件映射到 bl-mt798x 的 GPIO 编号，请手动修改 `->` 前的值。
+
 ## fix_led.py
 
 通用 DTB LED / 属性补丁脚本，通过一个 INI 配置文件描述多型号的 `/leds/*:gpios` 映射，并在修改 DTB 后自动更新外层 FIT 镜像中的 hash（crc32 + sha1），确保 U-Boot 校验通过。
