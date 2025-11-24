@@ -12,13 +12,13 @@
 
         [komi-a31]
         dtb_index = 1           ; 可选，不写则自动匹配含 /leds/* 的 DTB
-        green  = 4->8           ; /leds/green  gpios 第二个 u32: 4 -> 8
-        red    = 5->34          ; /leds/red    gpios 第二个 u32: 5 -> 34
+        green  = 8              ; /leds/green  gpios 第二个 u32: -> 8
+        red    = 34             ; /leds/red    gpios 第二个 u32: -> 34
 
         [fur602]
         dtb_index = 1
-        green  = 4->8
-        red    = 5->13
+        green  = 8
+        red    = 13
 
     调用示例:
 
@@ -239,13 +239,25 @@ def compute_crc32(data: bytes) -> int:
     return binascii.crc32(data) & 0xFFFFFFFF
 
 
-def patch_gpios_triplet_second(data: bytearray, prop: PropertyRef, expect_second: int, new_second: int) -> bool:
-    """针对 u32 triplet (3 * u32) 的 gpios 属性, 仅读/改第二个 u32。"""
+def patch_gpios_triplet_second(data: bytearray, prop: PropertyRef, expect_second: Optional[int], new_second: int) -> bool:
+    """针对 u32 triplet (3 * u32) 的 gpios 属性, 仅读/改第二个 u32。
+    
+    参数:
+        data: DTB 数据
+        prop: 属性引用
+        expect_second: 期望的原值。如果为 None，则跳过验证直接修改。
+        new_second: 新值
+    
+    返回:
+        True 表示成功修改，False 表示未修改（验证失败或已是目标值）
+    """
     if prop.value_len != 12:
         return False
     a, b, c = struct.unpack_from(">III", data, prop.value_offset)
-    if b != expect_second:
+    # 如果指定了期望值，则验证当前值是否匹配
+    if expect_second is not None and b != expect_second:
         return False
+    # 如果已经是目标值，无需修改
     if b == new_second:
         return False
     struct.pack_into(">III", data, prop.value_offset, a, new_second, c)
@@ -280,9 +292,11 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
 
     约定: 每个 section 表示一个 profile（型号），例如 [komi-a31]。
     - dtb_index: 可选，整数。
-    - 其它键: 视为 LED 名，值格式 "from->to"，例如 "4->8" 或 "0x4->0x8"。
+    - 其它键: 视为 LED 名，值为目标值，例如 "8" 或 "0x8"。
+    
+    注意: 使用 inline_comment_prefixes 以支持 INI 文件中的内联注释（如：green = 8 ; 注释 或 green = 8 # 注释）。
     """
-    cp = configparser.ConfigParser()
+    cp = configparser.ConfigParser(inline_comment_prefixes=(';', '#'))
     with open(path, "r", encoding="utf-8") as f:
         cp.read_file(f)
 
@@ -315,19 +329,12 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
         led_name = key.strip()
         if not led_name:
             continue
-        # value 形如 "4->8" 或 "0x4->0x8"
-        parts = value.split("->", 1)
-        if len(parts) != 2:
-            raise ValueError(
-                f"Invalid mapping '{value}' for led '{key}' in profile '{profile}', "
-                "expected format 'from->to'"
-            )
+        # value 形如 "8" 或 "0x8"（直接指定目标值）
         try:
-            v_from = int(parts[0].strip(), 0)
-            v_to = int(parts[1].strip(), 0)
+            v_to = int(value.strip(), 0)
         except ValueError as e:
             raise ValueError(
-                f"Invalid numbers in mapping '{value}' for led '{key}' in profile '{profile}': {e}"
+                f"Invalid number in mapping '{value}' for led '{key}' in profile '{profile}': {e}"
             )
         node_path = f"/leds/{led_name}"
         mappings.append(
@@ -335,7 +342,7 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
                 node=node_path,
                 property="gpios",
                 kind="u32_triplet",
-                second_from=v_from,
+                second_from=None,
                 second_to=v_to,
             )
         )
@@ -352,7 +359,7 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Generic DTB patcher driven by external JSON config (LED gpios, etc.)"
+        description="Generic DTB patcher driven by INI config (LED gpios, etc.)"
     )
     ap.add_argument("firmware", help="Input firmware .bin")
     ap.add_argument(
@@ -479,25 +486,37 @@ def main() -> int:
                 )
                 continue
             if m.kind == "u32_triplet":
-                if m.second_from is None or m.second_to is None:
+                if m.second_to is None:
                     print(
-                        f"Warning: mapping for {m.node}:{m.property} missing second_from/second_to, skip"
+                        f"Warning: mapping for {m.node}:{m.property} missing second_to, skip"
                     )
                     continue
                 if patch_gpios_triplet_second(
-                    data, ref, int(m.second_from), int(m.second_to)
+                    data, ref, m.second_from, int(m.second_to)
                 ):
-                    print(
-                        f"Patched {m.node}:{m.property} second cell "
-                        f"{m.second_from:#x}->{m.second_to:#x} (DTB {idx})"
-                    )
+                    if m.second_from is not None:
+                        print(
+                            f"Patched {m.node}:{m.property} second cell "
+                            f"{m.second_from:#x}->{m.second_to:#x} (DTB {idx})"
+                        )
+                    else:
+                        print(
+                            f"Patched {m.node}:{m.property} second cell "
+                            f"->{m.second_to:#x} (DTB {idx})"
+                        )
                     total_changes += 1
                     local_changed = True
                 else:
-                    print(
-                        f"No change / mismatch for {m.node}:{m.property} "
-                        f"(expected second {m.second_from:#x})"
-                    )
+                    if m.second_from is not None:
+                        print(
+                            f"No change / mismatch for {m.node}:{m.property} "
+                            f"(expected second {m.second_from:#x})"
+                        )
+                    else:
+                        print(
+                            f"No change for {m.node}:{m.property} "
+                            f"(already set to {m.second_to:#x})"
+                        )
             else:
                 print(
                     f"Warning: unsupported mapping kind '{m.kind}' (node {m.node}), skip"
@@ -525,7 +544,7 @@ def main() -> int:
                 summary_lines.append(line)
 
     if total_changes == 0:
-        print("No changes applied (nothing matched expected original values)")
+        print("No changes applied (all values already set to target values or properties not found)")
         return 2
 
     # 更新 FIT hash
