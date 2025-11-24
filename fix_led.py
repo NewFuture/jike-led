@@ -242,13 +242,22 @@ def compute_crc32(data: bytes) -> int:
 def patch_gpios_triplet_second(data: bytearray, prop: PropertyRef, expect_second: Optional[int], new_second: int) -> bool:
     """针对 u32 triplet (3 * u32) 的 gpios 属性, 仅读/改第二个 u32。
     
-    如果 expect_second 为 None，则不验证原值，直接修改。
+    参数:
+        data: DTB 数据
+        prop: 属性引用
+        expect_second: 期望的原值。如果为 None，则跳过验证直接修改。
+        new_second: 新值
+    
+    返回:
+        True 表示成功修改，False 表示未修改（验证失败或已是目标值）
     """
     if prop.value_len != 12:
         return False
     a, b, c = struct.unpack_from(">III", data, prop.value_offset)
+    # 如果指定了期望值，则验证当前值是否匹配
     if expect_second is not None and b != expect_second:
         return False
+    # 如果已经是目标值，无需修改
     if b == new_second:
         return False
     struct.pack_into(">III", data, prop.value_offset, a, new_second, c)
@@ -284,6 +293,8 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
     约定: 每个 section 表示一个 profile（型号），例如 [komi-a31]。
     - dtb_index: 可选，整数。
     - 其它键: 视为 LED 名，值为目标值，例如 "8" 或 "0x8"。
+    
+    注意: 使用 inline_comment_prefixes 以支持 INI 文件中的内联注释（如：green = 8 ; 注释）。
     """
     cp = configparser.ConfigParser(inline_comment_prefixes=(';',))
     with open(path, "r", encoding="utf-8") as f:
