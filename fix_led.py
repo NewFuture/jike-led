@@ -719,12 +719,8 @@ def main() -> int:
 
     # Return success only if all operations succeeded and at least one file was generated
     # If all boards were skipped but no errors occurred, also return success (exit code 0)
-    if not all_success:
-        return 1
-    if len(generated_files) == 0 and len(skipped_boards) == 0:
-        # No files generated and no boards skipped = something went wrong
-        return 1
-    return 0
+    # Return success if all operations succeeded (files generated or all skipped)
+    return 0 if all_success else 1
 
 
 if __name__ == "__main__":  # pragma: no cover
