@@ -416,6 +416,7 @@ FIT (Flattened Image Tree) 是 U-Boot 使用的镜像格式：
 #### 触发方式
 
 - **自动触发**：每天 UTC 时间 2:00 AM（北京时间 10:00 AM）
+- **Tag 触发**：创建以 `v` 开头的标签时自动触发（如 `v1.0.0`）
 - **手动触发**：在 GitHub Actions 页面手动运行 "Auto Release Patched Firmware" 工作流
 
 #### 下载已发布的固件
@@ -798,6 +799,7 @@ This repository includes an automated workflow (`.github/workflows/release.yml`)
 #### Trigger Methods
 
 - **Automatic**: Daily at 2:00 AM UTC (10:00 AM Beijing Time)
+- **Tag Trigger**: Automatically triggered when creating tags starting with `v` (e.g., `v1.0.0`)
 - **Manual**: Run "Auto Release Patched Firmware" workflow from GitHub Actions page
 
 #### Download Pre-patched Firmware

@@ -2,6 +2,9 @@ name: Auto Release Patched Firmware
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
   schedule:
     # Run daily at 2 AM UTC to check for new firmware
     - cron: '0 2 * * *'
