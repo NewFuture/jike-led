@@ -5,8 +5,8 @@
 > [!NOTE]
 > 1. 此工具未充分测试,请谨慎使用。
 > 2. 修改后的固件缺少完整签名，只能通过uboot上传，不能直接升级写入。
+> 3. 如果你的机型不存在，请在[leds.ini](leds.ini) 配置文件添加型号配置
 
-通用 DTB LED / 属性补丁脚本，通过一个 [leds.ini](leds.ini) 配置文件描述多型号的 `/leds/*:gpios` 映射。
 
 
 ## 基本用法
@@ -112,5 +112,6 @@ python3 fix_led.py firmware.bin -b komi-a31 --no-fit-hash -o test.bin
 - 如果某个 board section 没有写 `dtb_index`，脚本会尝试在所有 DTB 中找到包含对应 `/leds/*` 节点的那一个；如果找不到会给出 warning。
 - 映射规则里 `from` 的值和固件中原始 gpios 第二个 u32 不一致时，该 LED 不会被修改，并打印 `No change / mismatch` 提示，方便你确认原始值。
 - 当前脚本专注于 LED gpios（三个 u32 的第二个值），如果以后需要支持更多类型的属性，可以再扩展 INI 语法和解析逻辑。
+
 
 
