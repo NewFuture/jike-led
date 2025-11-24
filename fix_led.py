@@ -294,9 +294,9 @@ def load_ini_config(path: str, profile: Optional[str]) -> PatchConfig:
     - dtb_index: 可选，整数。
     - 其它键: 视为 LED 名，值为目标值，例如 "8" 或 "0x8"。
     
-    注意: 使用 inline_comment_prefixes 以支持 INI 文件中的内联注释（如：green = 8 ; 注释）。
+    注意: 使用 inline_comment_prefixes 以支持 INI 文件中的内联注释（如：green = 8 ; 注释 或 green = 8 # 注释）。
     """
-    cp = configparser.ConfigParser(inline_comment_prefixes=(';',))
+    cp = configparser.ConfigParser(inline_comment_prefixes=(';', '#'))
     with open(path, "r", encoding="utf-8") as f:
         cp.read_file(f)
 

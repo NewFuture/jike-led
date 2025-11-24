@@ -29,6 +29,7 @@ This file contains special-purpose firmware tooling. When editing it, Copilot sh
   - Property: `gpios`
   - Kind: `"u32_triplet"`
   - Value format: `<target_value>`; supports decimal or `0x` hex (e.g., `8` or `0x8`).
+  - Comments: Both `;` and `#` are supported as comment prefixes.
 
 ## CLI Contract
 
