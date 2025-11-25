@@ -247,17 +247,18 @@ jobs:
         # Output that release was created/updated
         echo "release_created=true" >> $GITHUB_OUTPUT
     
-    - name: Upload artifacts (backup)
-      if: always()
+    - name: Upload artifacts for pages deployment
+      if: steps.create_release.outputs.release_created == 'true'
       uses: actions/upload-artifact@v4
       with:
-        name: patched-firmware-${{ steps.download.outputs.version || 'unknown' }}
+        name: patched-firmware
         path: release-files/
         if-no-files-found: warn
-        retention-days: 30
+        retention-days: 7
     
     outputs:
       release_created: ${{ steps.create_release.outputs.release_created }}
+      release_name: ${{ steps.download.outputs.version }}
 
   # Deploy to GitHub Pages after release is created
   deploy-pages:
@@ -304,23 +305,11 @@ jobs:
             echo "Release: $RELEASE_NAME ($TAG_NAME)"
           fi
 
-      - name: Download release assets
-        if: steps.release.outputs.has_release == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ steps.release.outputs.tag_name }}
-        run: |
-          mkdir -p _site/bin
-          
-          # Download all .bin files from the release
-          echo "Downloading .bin files from release $TAG_NAME..."
-          gh release download "$TAG_NAME" --pattern "*.bin" --dir _site/bin || {
-            echo "::warning::Failed to download .bin files from release $TAG_NAME. Check if release exists and contains .bin assets."
-          }
-          
-          # List downloaded files
-          echo "Downloaded files:"
-          ls -lh _site/bin/ 2>/dev/null || echo "No files downloaded"
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: patched-firmware
+          path: _site/bin
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
