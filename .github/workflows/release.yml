@@ -219,8 +219,8 @@ jobs:
         
         # Replace placeholders in template using sed with file content
         # First, escape special characters in the replacement text (& / \ and the delimiter #)
-        ORIGINAL_FIRMWARE=$(cat /tmp/original_firmware.txt | sed 's#[&#/\]#\\&#g' | tr '\n' '\r')
-        BOARD_TABLE=$(cat /tmp/board_table.txt | sed 's#[&#/\]#\\&#g' | tr '\n' '\r')
+        ORIGINAL_FIRMWARE=$(cat /tmp/original_firmware.txt | sed 's#[&#/\\]#\\&#g' | tr '\n' '\r')
+        BOARD_TABLE=$(cat /tmp/board_table.txt | sed 's#[&#/\\]#\\&#g' | tr '\n' '\r')
         
         # Replace placeholders (using \r as newline placeholder)
         sed -i "s#{{ORIGINAL_FIRMWARE}}#${ORIGINAL_FIRMWARE}#g" release_notes.md
@@ -304,6 +304,24 @@ jobs:
             echo "Release: $RELEASE_NAME ($TAG_NAME)"
           fi
 
+      - name: Download release assets
+        if: steps.release.outputs.has_release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: |
+          mkdir -p _site/bin
+          
+          # Download all .bin files from the release
+          echo "Downloading .bin files from release $TAG_NAME..."
+          gh release download "$TAG_NAME" --pattern "*.bin" --dir _site/bin || {
+            echo "::warning::Failed to download .bin files from release $TAG_NAME. Check if release exists and contains .bin assets."
+          }
+          
+          # List downloaded files
+          echo "Downloaded files:"
+          ls -lh _site/bin/ 2>/dev/null || echo "No files downloaded"
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -347,12 +365,10 @@ jobs:
               FORMATTED_DATE="未知"
             fi
             
-            # Create release info section
+            # Create release info section (without GitHub Releases link)
             echo '<div class="release-info">' > /tmp/release_content.html
             echo "  <span class=\"version\">📦 最新版本: ${RELEASE_NAME}</span>" >> /tmp/release_content.html
             echo "  <span class=\"date\"> | 发布时间: ${FORMATTED_DATE}</span>" >> /tmp/release_content.html
-            echo '  <br>' >> /tmp/release_content.html
-            echo "  <a href=\"${HTML_URL}\" class=\"github-link\" target=\"_blank\" rel=\"noopener noreferrer\">🔗 前往 GitHub Releases 下载</a>" >> /tmp/release_content.html
             echo '</div>' >> /tmp/release_content.html
             
             # Convert release notes from Markdown to HTML
@@ -362,6 +378,10 @@ jobs:
                 echo "Installing pandoc..."
                 sudo apt-get update -qq && sudo apt-get install -y -qq pandoc > /dev/null 2>&1
               fi
+              
+              # Convert GitHub release URLs to relative paths for bin files
+              # Pattern: https://github.com/owner/repo/releases/download/tag/filename.bin -> bin/filename.bin
+              sed -i 's#https://github.com/[^/]*/[^/]*/releases/download/[^/]*/\([^)]*\.bin\)#bin/\1#g' /tmp/release_body.md
               
               # Convert markdown to HTML and append, with error handling
               pandoc /tmp/release_body.md -f gfm -t html >> /tmp/release_content.html || echo "<p>Failed to render release notes.</p>" >> /tmp/release_content.html
@@ -377,7 +397,7 @@ jobs:
           
           # Replace release content placeholder using sed with file
           # Escape special characters (& / \ and the delimiter #)
-          RELEASE_CONTENT=$(cat /tmp/release_content.html | sed 's#[&#/\]#\\&#g' | tr '\n' '\r')
+          RELEASE_CONTENT=$(cat /tmp/release_content.html | sed 's#[&#/\\]#\\&#g' | tr '\n' '\r')
           sed -i "s#{{RELEASE_CONTENT}}#${RELEASE_CONTENT}#g" _site/index.html
           sed -i 's/\r/\n/g' _site/index.html
           
