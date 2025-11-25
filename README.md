@@ -388,6 +388,7 @@ FIT (Flattened Image Tree) 是 U-Boot 使用的镜像格式：
 3. **提交 Pull Request**
    - 说明机型名称和测试情况
    - 提供必要的硬件信息
+4. 实现原理 https://blog.newfuture.cc/modify-the-device-tree-of-gecoos-firmware/
 
 ### 许可证
 
