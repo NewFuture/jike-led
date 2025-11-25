@@ -18,7 +18,7 @@ permissions:
 # Allow only one concurrent deployment
 concurrency:
   group: "release-and-pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-release:
@@ -322,121 +322,23 @@ jobs:
             cp CNAME _site/
           fi
           
-          # Generate index.html
-          cat > _site/index.html << 'HTMLHEADER'
-          <!DOCTYPE html>
-          <html lang="zh-CN">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>集客 LED 固件修复工具 - Jike LED Firmware Patcher</title>
-            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-light.min.css">
-            <style>
-              body {
-                box-sizing: border-box;
-                min-width: 200px;
-                max-width: 980px;
-                margin: 0 auto;
-                padding: 45px;
-                background-color: #f6f8fa;
-              }
-              .markdown-body {
-                background-color: white;
-                padding: 45px;
-                border-radius: 6px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
-              }
-              .header {
-                text-align: center;
-                margin-bottom: 30px;
-                padding-bottom: 20px;
-                border-bottom: 1px solid #e1e4e8;
-              }
-              .header h1 {
-                margin: 0 0 10px 0;
-                color: #24292e;
-              }
-              .header .subtitle {
-                color: #586069;
-                font-size: 1.1em;
-              }
-              .release-info {
-                background-color: #f1f8ff;
-                border: 1px solid #c8e1ff;
-                border-radius: 6px;
-                padding: 15px;
-                margin-bottom: 20px;
-              }
-              .release-info .version {
-                font-size: 1.5em;
-                font-weight: bold;
-                color: #0366d6;
-              }
-              .release-info .date {
-                color: #586069;
-                font-size: 0.9em;
-              }
-              .github-link {
-                display: inline-block;
-                background-color: #24292e;
-                color: white !important;
-                padding: 10px 20px;
-                border-radius: 6px;
-                text-decoration: none;
-                margin-top: 10px;
-              }
-              .github-link:hover {
-                background-color: #2f363d;
-              }
-              .no-release {
-                text-align: center;
-                padding: 40px;
-                color: #586069;
-              }
-              @media (max-width: 767px) {
-                body {
-                  padding: 15px;
-                }
-                .markdown-body {
-                  padding: 20px;
-                }
-              }
-              table {
-                width: 100%;
-                border-collapse: collapse;
-              }
-              th, td {
-                padding: 8px 12px;
-                text-align: left;
-                border: 1px solid #e1e4e8;
-              }
-              th {
-                background-color: #f6f8fa;
-              }
-              a {
-                color: #0366d6;
-              }
-              .footer {
-                text-align: center;
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #e1e4e8;
-                color: #586069;
-                font-size: 0.9em;
-              }
-              .footer a {
-                color: #0366d6;
-              }
-            </style>
-          </head>
-          <body>
-            <article class="markdown-body">
-              <div class="header">
-                <h1>🔧 集客 LED 固件修复工具</h1>
-                <p class="subtitle">Jike Gecoos AP LED Firmware Patcher</p>
-              </div>
-          HTMLHEADER
+          # Read HTML template
+          cp .github/pages-template.html _site/index.html
           
+          # Prepare version info
+          if [ "$HAS_RELEASE" = "true" ] && [ -n "$RELEASE_NAME" ]; then
+            VERSION_TEXT="v${RELEASE_NAME}"
+            VERSION_BADGE="<span class=\"version-badge\">📦 ${VERSION_TEXT}</span>"
+          else
+            VERSION_TEXT=""
+            VERSION_BADGE=""
+          fi
+          
+          # Replace version placeholders
+          sed -i "s|{{VERSION}}|${VERSION_TEXT}|g" _site/index.html
+          sed -i "s|{{VERSION_BADGE}}|${VERSION_BADGE}|g" _site/index.html
+          
+          # Generate release content
           if [ "$HAS_RELEASE" = "true" ]; then
             # Format date with fallback
             if [ -n "$PUBLISHED_AT" ]; then
@@ -445,15 +347,13 @@ jobs:
               FORMATTED_DATE="未知"
             fi
             
-            # Add release info
-            cat >> _site/index.html << RELEASEINFO
-              <div class="release-info">
-                <span class="version">📦 最新版本: ${RELEASE_NAME}</span>
-                <span class="date"> | 发布时间: ${FORMATTED_DATE}</span>
-                <br>
-                <a href="${HTML_URL}" class="github-link" target="_blank">🔗 前往 GitHub Releases 下载</a>
-              </div>
-          RELEASEINFO
+            # Create release info section
+            echo '<div class="release-info">' > /tmp/release_content.html
+            echo "  <span class=\"version\">📦 最新版本: ${RELEASE_NAME}</span>" >> /tmp/release_content.html
+            echo "  <span class=\"date\"> | 发布时间: ${FORMATTED_DATE}</span>" >> /tmp/release_content.html
+            echo '  <br>' >> /tmp/release_content.html
+            echo "  <a href=\"${HTML_URL}\" class=\"github-link\" target=\"_blank\">🔗 前往 GitHub Releases 下载</a>" >> /tmp/release_content.html
+            echo '</div>' >> /tmp/release_content.html
             
             # Convert release notes from Markdown to HTML
             if [ -f /tmp/release_body.md ]; then
@@ -463,37 +363,22 @@ jobs:
                 sudo apt-get update -qq && sudo apt-get install -y -qq pandoc > /dev/null 2>&1
               fi
               
-              # Convert markdown to HTML
-              pandoc /tmp/release_body.md -f gfm -t html -o /tmp/release_body.html
-              
-              # Append release notes
-              cat /tmp/release_body.html >> _site/index.html
+              # Convert markdown to HTML and append
+              pandoc /tmp/release_body.md -f gfm -t html >> /tmp/release_content.html
             fi
           else
             # No release yet
-            cat >> _site/index.html << 'NORELEASE'
-              <div class="no-release">
-                <h2>暂无发布版本</h2>
-                <p>目前还没有发布任何固件版本。</p>
-                <p>请访问 <a href="https://github.com/NewFuture/jike-led">GitHub 仓库</a> 获取更多信息。</p>
-              </div>
-          NORELEASE
+            echo '<div class="no-release">' > /tmp/release_content.html
+            echo '  <h2>暂无发布版本</h2>' >> /tmp/release_content.html
+            echo '  <p>目前还没有发布任何固件版本。</p>' >> /tmp/release_content.html
+            echo '  <p>请访问 <a href="https://github.com/NewFuture/jike-led">GitHub 仓库</a> 获取更多信息。</p>' >> /tmp/release_content.html
+            echo '</div>' >> /tmp/release_content.html
           fi
           
-          # Add footer
-          cat >> _site/index.html << 'HTMLFOOTER'
-              <div class="footer">
-                <p>
-                  <a href="https://github.com/NewFuture/jike-led">📂 GitHub 仓库</a> |
-                  <a href="https://github.com/NewFuture/jike-led/issues">🐛 问题反馈</a> |
-                  <a href="https://github.com/NewFuture/jike-led#readme">📖 使用说明</a>
-                </p>
-                <p>© 2024-2025 NewFuture. Licensed under Apache 2.0</p>
-              </div>
-            </article>
-          </body>
-          </html>
-          HTMLFOOTER
+          # Replace release content placeholder using sed with file
+          RELEASE_CONTENT=$(cat /tmp/release_content.html | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
+          sed -i "s|{{RELEASE_CONTENT}}|${RELEASE_CONTENT}|g" _site/index.html
+          sed -i 's/\r/\n/g' _site/index.html
           
           echo "Site built successfully"
           ls -la _site/
