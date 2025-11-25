@@ -181,33 +181,20 @@ jobs:
         # Get repository info for download links
         REPO_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
         
-        # Create release notes in Chinese (heredoc content will be trimmed at the end)
-        cat > release_notes.md << 'EOFHEADER'
-        ## LED 修复固件
+        # Read the release notes template
+        cp .github/release-notes-template.md release_notes.md
         
-        本发布版本包含原版固件和针对各型号路由器的 LED 修复固件。
-        
-        ### 原版固件
-        EOFHEADER
-        
+        # Generate original firmware list to a temp file
+        > /tmp/original_firmware.txt
         if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
-          echo "- [${{ steps.download.outputs.ap250mdv_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250mdv_filename }})" >> release_notes.md
+          echo "- [${{ steps.download.outputs.ap250mdv_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250mdv_filename }})" >> /tmp/original_firmware.txt
         fi
         if [ -n "${{ steps.download.outputs.ap250md_filename }}" ]; then
-          echo "- [${{ steps.download.outputs.ap250md_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250md_filename }})" >> release_notes.md
+          echo "- [${{ steps.download.outputs.ap250md_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250md_filename }})" >> /tmp/original_firmware.txt
         fi
         
-        cat >> release_notes.md << 'EOFTABLE'
-        
-        ### 支持型号
-        
-        请根据您的路由器型号下载对应的固件文件：
-        
-        | 型号 | AP250MDV 固件 | AP250MD 固件 |
-        |------|---------------|--------------|
-        EOFTABLE
-        
-        # Generate table rows for each board profile using while read for better handling
+        # Generate board table rows to a temp file
+        > /tmp/board_table.txt
         grep '^\[' leds.ini | sed 's/\[\([^];]*\)\].*/\1/' | while read -r board; do
           AP250MDV_FILE="${board}-${{ steps.download.outputs.ap250mdv_filename }}"
           AP250MD_FILE="${board}-${{ steps.download.outputs.ap250md_filename }}"
@@ -227,32 +214,20 @@ jobs:
             ROW="${ROW} - |"
           fi
           
-          echo "${ROW}" >> release_notes.md
+          echo "${ROW}" >> /tmp/board_table.txt
         done
         
-        cat >> release_notes.md << 'EOFFOOTER'
+        # Replace placeholders in template using sed with file content
+        # First, escape special characters in the replacement text
+        ORIGINAL_FIRMWARE=$(cat /tmp/original_firmware.txt | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
+        BOARD_TABLE=$(cat /tmp/board_table.txt | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
         
-        ### 安装说明
+        # Replace placeholders (using \r as newline placeholder)
+        sed -i "s|{{ORIGINAL_FIRMWARE}}|${ORIGINAL_FIRMWARE}|g" release_notes.md
+        sed -i "s|{{BOARD_TABLE}}|${BOARD_TABLE}|g" release_notes.md
         
-        ⚠️ **重要警告：**
-        1. 修改后的固件缺少完整签名，只能通过 U-Boot 上传
-        2. 请勿使用直接升级方式
-        3. 刷机前请务必备份原始固件
-        4. 刷写错误的固件可能导致设备变砖
-        
-        ### 使用方法
-        
-        1. 根据您的路由器型号下载对应的固件文件
-        2. 通过 U-Boot 恢复模式上传固件
-        3. 详细说明请参考 [README](https://github.com/NewFuture/jike-led)
-        
-        ### 固件来源
-        
-        原版固件下载自：http://file.cnrouter.com/index.php/Index/apbeta.html
-        EOFFOOTER
-        
-        # Remove leading whitespace from all lines (handles heredoc indentation)
-        sed -i 's/^[[:space:]]*//' release_notes.md
+        # Convert \r back to newlines
+        sed -i 's/\r/\n/g' release_notes.md
         
         # Create or update release
         if gh release view "$TAG_NAME" >/dev/null 2>&1; then
