@@ -36,7 +36,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Fetch the latest release information
-          RELEASE_JSON=$(gh api repos/${{ github.repository }}/releases/latest 2>/dev/null || echo '{}')
+          RELEASE_JSON=$(gh api repos/${{ github.repository }}/releases/latest 2>&1) || {
+            echo "::warning::Failed to fetch release data: $RELEASE_JSON"
+            RELEASE_JSON='{}'
+          }
           
           if [ "$RELEASE_JSON" = "{}" ] || [ "$(echo "$RELEASE_JSON" | jq -r '.message // empty')" = "Not Found" ]; then
             echo "No releases found, creating placeholder page"
@@ -200,11 +203,18 @@ jobs:
           HTMLHEADER
           
           if [ "$HAS_RELEASE" = "true" ]; then
+            # Format date with fallback
+            if [ -n "$PUBLISHED_AT" ]; then
+              FORMATTED_DATE=$(date -d "${PUBLISHED_AT}" "+%Y-%m-%d %H:%M UTC" 2>/dev/null || echo "${PUBLISHED_AT%T*}")
+            else
+              FORMATTED_DATE="未知"
+            fi
+            
             # Add release info
             cat >> _site/index.html << RELEASEINFO
               <div class="release-info">
                 <span class="version">📦 最新版本: ${RELEASE_NAME}</span>
-                <span class="date"> | 发布时间: $(date -d "${PUBLISHED_AT}" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "${PUBLISHED_AT}")</span>
+                <span class="date"> | 发布时间: ${FORMATTED_DATE}</span>
                 <br>
                 <a href="${HTML_URL}" class="github-link" target="_blank">🔗 前往 GitHub Releases 下载</a>
               </div>
@@ -212,8 +222,12 @@ jobs:
             
             # Convert release notes from Markdown to HTML
             if [ -f /tmp/release_body.md ]; then
-              # Install markdown converter
-              sudo apt-get update -qq && sudo apt-get install -y -qq pandoc > /dev/null 2>&1
+              # pandoc is pre-installed on ubuntu-latest runner
+              # Fall back to apt-get install if not available
+              if ! command -v pandoc &> /dev/null; then
+                echo "Installing pandoc..."
+                sudo apt-get update -qq && sudo apt-get install -y -qq pandoc > /dev/null 2>&1
+              fi
               
               # Convert markdown to HTML
               pandoc /tmp/release_body.md -f gfm -t html -o /tmp/release_body.html
