@@ -9,11 +9,20 @@ on:
     # Run daily at 2 AM UTC to check for new firmware
     - cron: '0 2 * * *'
 
+# Sets permissions for the GITHUB_TOKEN
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "release-and-pages"
+  cancel-in-progress: true
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     
     steps:
     - name: Checkout code
@@ -153,6 +162,7 @@ jobs:
         echo "Total files: $FILE_COUNT"
     
     - name: Create Release
+      id: create_release
       if: steps.prepare.outputs.file_count > 0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -171,33 +181,20 @@ jobs:
         # Get repository info for download links
         REPO_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
         
-        # Create release notes in Chinese (heredoc content will be trimmed at the end)
-        cat > release_notes.md << 'EOFHEADER'
-        ## LED 修复固件
+        # Read the release notes template
+        cp .github/release-notes-template.md release_notes.md
         
-        本发布版本包含原版固件和针对各型号路由器的 LED 修复固件。
-        
-        ### 原版固件
-        EOFHEADER
-        
+        # Generate original firmware list to a temp file
+        > /tmp/original_firmware.txt
         if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
-          echo "- [${{ steps.download.outputs.ap250mdv_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250mdv_filename }})" >> release_notes.md
+          echo "- [${{ steps.download.outputs.ap250mdv_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250mdv_filename }})" >> /tmp/original_firmware.txt
         fi
         if [ -n "${{ steps.download.outputs.ap250md_filename }}" ]; then
-          echo "- [${{ steps.download.outputs.ap250md_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250md_filename }})" >> release_notes.md
+          echo "- [${{ steps.download.outputs.ap250md_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250md_filename }})" >> /tmp/original_firmware.txt
         fi
         
-        cat >> release_notes.md << 'EOFTABLE'
-        
-        ### 支持型号
-        
-        请根据您的路由器型号下载对应的固件文件：
-        
-        | 型号 | AP250MDV 固件 | AP250MD 固件 |
-        |------|---------------|--------------|
-        EOFTABLE
-        
-        # Generate table rows for each board profile using while read for better handling
+        # Generate board table rows to a temp file
+        > /tmp/board_table.txt
         grep '^\[' leds.ini | sed 's/\[\([^];]*\)\].*/\1/' | while read -r board; do
           AP250MDV_FILE="${board}-${{ steps.download.outputs.ap250mdv_filename }}"
           AP250MD_FILE="${board}-${{ steps.download.outputs.ap250md_filename }}"
@@ -217,32 +214,20 @@ jobs:
             ROW="${ROW} - |"
           fi
           
-          echo "${ROW}" >> release_notes.md
+          echo "${ROW}" >> /tmp/board_table.txt
         done
         
-        cat >> release_notes.md << 'EOFFOOTER'
+        # Replace placeholders in template using sed with file content
+        # First, escape special characters in the replacement text
+        ORIGINAL_FIRMWARE=$(cat /tmp/original_firmware.txt | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
+        BOARD_TABLE=$(cat /tmp/board_table.txt | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
         
-        ### 安装说明
+        # Replace placeholders (using \r as newline placeholder)
+        sed -i "s|{{ORIGINAL_FIRMWARE}}|${ORIGINAL_FIRMWARE}|g" release_notes.md
+        sed -i "s|{{BOARD_TABLE}}|${BOARD_TABLE}|g" release_notes.md
         
-        ⚠️ **重要警告：**
-        1. 修改后的固件缺少完整签名，只能通过 U-Boot 上传
-        2. 请勿使用直接升级方式
-        3. 刷机前请务必备份原始固件
-        4. 刷写错误的固件可能导致设备变砖
-        
-        ### 使用方法
-        
-        1. 根据您的路由器型号下载对应的固件文件
-        2. 通过 U-Boot 恢复模式上传固件
-        3. 详细说明请参考 [README](https://github.com/NewFuture/jike-led)
-        
-        ### 固件来源
-        
-        原版固件下载自：http://file.cnrouter.com/index.php/Index/apbeta.html
-        EOFFOOTER
-        
-        # Remove leading whitespace from all lines (handles heredoc indentation)
-        sed -i 's/^[[:space:]]*//' release_notes.md
+        # Convert \r back to newlines
+        sed -i 's/\r/\n/g' release_notes.md
         
         # Create or update release
         if gh release view "$TAG_NAME" >/dev/null 2>&1; then
@@ -258,6 +243,9 @@ jobs:
             --notes-file release_notes.md \
             release-files/*.bin
         fi
+        
+        # Output that release was created/updated
+        echo "release_created=true" >> $GITHUB_OUTPUT
     
     - name: Upload artifacts (backup)
       if: always()
@@ -267,3 +255,137 @@ jobs:
         path: release-files/
         if-no-files-found: warn
         retention-days: 30
+    
+    outputs:
+      release_created: ${{ steps.create_release.outputs.release_created }}
+
+  # Deploy to GitHub Pages after release is created
+  deploy-pages:
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    if: needs.build-and-release.outputs.release_created == 'true'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch latest release data
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch the latest release information
+          RELEASE_JSON=$(gh api repos/${{ github.repository }}/releases/latest 2>&1) || {
+            echo "::warning::Failed to fetch release data: $RELEASE_JSON"
+            RELEASE_JSON='{}'
+          }
+          
+          TAG_NAME=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
+            echo "No releases found, creating placeholder page"
+            echo "has_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_release=true" >> $GITHUB_OUTPUT
+            
+            # Extract release information
+            RELEASE_NAME=$(echo "$RELEASE_JSON" | jq -r '.name')
+            RELEASE_BODY=$(echo "$RELEASE_JSON" | jq -r '.body')
+            PUBLISHED_AT=$(echo "$RELEASE_JSON" | jq -r '.published_at')
+            HTML_URL=$(echo "$RELEASE_JSON" | jq -r '.html_url')
+            
+            echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+            echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+            echo "html_url=$HTML_URL" >> $GITHUB_OUTPUT
+            echo "published_at=$PUBLISHED_AT" >> $GITHUB_OUTPUT
+            
+            # Save release body to file for later use
+            printf '%s\n' "$RELEASE_BODY" > /tmp/release_body.md
+            
+            echo "Release: $RELEASE_NAME ($TAG_NAME)"
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build site
+        env:
+          HAS_RELEASE: ${{ steps.release.outputs.has_release }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          RELEASE_NAME: ${{ steps.release.outputs.release_name }}
+          HTML_URL: ${{ steps.release.outputs.html_url }}
+          PUBLISHED_AT: ${{ steps.release.outputs.published_at }}
+        run: |
+          mkdir -p _site
+          
+          # Copy CNAME file if exists
+          if [ -f CNAME ]; then
+            cp CNAME _site/
+          fi
+          
+          # Read HTML template
+          cp .github/pages-template.html _site/index.html
+          
+          # Prepare version info
+          if [ "$HAS_RELEASE" = "true" ] && [ -n "$RELEASE_NAME" ]; then
+            VERSION_TEXT="v${RELEASE_NAME}"
+            VERSION_BADGE="<span class=\"version-badge\">📦 ${VERSION_TEXT}</span>"
+          else
+            VERSION_TEXT=""
+            VERSION_BADGE=""
+          fi
+          
+          # Replace version placeholders
+          sed -i "s|{{VERSION}}|${VERSION_TEXT}|g" _site/index.html
+          sed -i "s|{{VERSION_BADGE}}|${VERSION_BADGE}|g" _site/index.html
+          
+          # Generate release content
+          if [ "$HAS_RELEASE" = "true" ]; then
+            # Format date with fallback
+            if [ -n "$PUBLISHED_AT" ]; then
+              FORMATTED_DATE=$(date -d "${PUBLISHED_AT}" "+%Y-%m-%d %H:%M UTC" 2>/dev/null || echo "${PUBLISHED_AT%T*}")
+            else
+              FORMATTED_DATE="未知"
+            fi
+            
+            # Create release info section
+            echo '<div class="release-info">' > /tmp/release_content.html
+            echo "  <span class=\"version\">📦 最新版本: ${RELEASE_NAME}</span>" >> /tmp/release_content.html
+            echo "  <span class=\"date\"> | 发布时间: ${FORMATTED_DATE}</span>" >> /tmp/release_content.html
+            echo '  <br>' >> /tmp/release_content.html
+            echo "  <a href=\"${HTML_URL}\" class=\"github-link\" target=\"_blank\" rel=\"noopener noreferrer\">🔗 前往 GitHub Releases 下载</a>" >> /tmp/release_content.html
+            echo '</div>' >> /tmp/release_content.html
+            
+            # Convert release notes from Markdown to HTML
+            if [ -f /tmp/release_body.md ]; then
+              # pandoc is pre-installed on ubuntu-latest runner
+              if ! command -v pandoc &> /dev/null; then
+                echo "Installing pandoc..."
+                sudo apt-get update -qq && sudo apt-get install -y -qq pandoc > /dev/null 2>&1
+              fi
+              
+              # Convert markdown to HTML and append, with error handling
+              pandoc /tmp/release_body.md -f gfm -t html >> /tmp/release_content.html || echo "<p>Failed to render release notes.</p>" >> /tmp/release_content.html
+            fi
+          else
+            # No release yet
+            echo '<div class="no-release">' > /tmp/release_content.html
+            echo '  <h2>暂无发布版本</h2>' >> /tmp/release_content.html
+            echo '  <p>目前还没有发布任何固件版本。</p>' >> /tmp/release_content.html
+            echo '  <p>请访问 <a href="https://github.com/NewFuture/jike-led">GitHub 仓库</a> 获取更多信息。</p>' >> /tmp/release_content.html
+            echo '</div>' >> /tmp/release_content.html
+          fi
+          
+          # Replace release content placeholder using sed with file
+          RELEASE_CONTENT=$(cat /tmp/release_content.html | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
+          sed -i "s|{{RELEASE_CONTENT}}|${RELEASE_CONTENT}|g" _site/index.html
+          sed -i 's/\r/\n/g' _site/index.html
+          
+          echo "Site built successfully"
+          ls -la _site/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
