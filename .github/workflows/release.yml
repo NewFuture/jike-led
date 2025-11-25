@@ -133,7 +133,7 @@ jobs:
         # since "AP250MDV" contains "AP250MD". This ensures both variants are included in the release.
         find . -maxdepth 1 -type f -name "*-JIKEAP_AP250MD*.bin" -exec mv {} release-files/ \;
         
-        # Also copy original firmware files to release directory
+        # Also move original firmware files to release directory
         # Original files have format: JIKEAP_AP250MD*.bin (without board prefix)
         if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ] && [ -f "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
           mv "${{ steps.download.outputs.ap250mdv_filename }}" release-files/
