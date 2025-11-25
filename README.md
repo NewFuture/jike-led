@@ -161,8 +161,8 @@ red   = 34     # 红灯对应 GPIO 34，映射到 /leds/red:gpios 的第二个 u
 #### 集客固件 LED 说明
 
 集客固件通常只有**红色**和**绿色**两个可配置的 LED 灯：
-- **green**：系统状态指示灯（通常为绿色）
-- **red**：系统状态指示灯（通常为红色，部分机型可能为蓝色）
+- **green**：系统状态指示灯（通常为绿色，你也可以改成其它颜色）
+- **red**：系统状态指示灯（通常为红色）
 
 #### 配置规则
 
@@ -184,12 +184,6 @@ red   = 34     # 红灯对应 GPIO 34，映射到 /leds/red:gpios 的第二个 u
 dtb_index = 1
 green = 8
 red   = 13
-
-# Komi A31 路由器（使用蓝灯代替红灯）
-[komi-a31_blue]
-dtb_index = 1
-green = 8
-red   = 13    # Komi-A31 中 "blue:system" 在此处用作红灯状态 "/leds/red"
 
 # 360T7 路由器
 [360t7]
