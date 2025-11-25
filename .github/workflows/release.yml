@@ -280,14 +280,14 @@ jobs:
             RELEASE_JSON='{}'
           }
           
-          if [ "$RELEASE_JSON" = "{}" ] || [ "$(echo "$RELEASE_JSON" | jq -r '.message // empty')" = "Not Found" ]; then
+          TAG_NAME=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "null" ]; then
             echo "No releases found, creating placeholder page"
             echo "has_release=false" >> $GITHUB_OUTPUT
           else
             echo "has_release=true" >> $GITHUB_OUTPUT
             
             # Extract release information
-            TAG_NAME=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
             RELEASE_NAME=$(echo "$RELEASE_JSON" | jq -r '.name')
             RELEASE_BODY=$(echo "$RELEASE_JSON" | jq -r '.body')
             PUBLISHED_AT=$(echo "$RELEASE_JSON" | jq -r '.published_at')
@@ -299,7 +299,7 @@ jobs:
             echo "published_at=$PUBLISHED_AT" >> $GITHUB_OUTPUT
             
             # Save release body to file for later use
-            echo "$RELEASE_BODY" > /tmp/release_body.md
+            printf '%s\n' "$RELEASE_BODY" > /tmp/release_body.md
             
             echo "Release: $RELEASE_NAME ($TAG_NAME)"
           fi
@@ -352,7 +352,7 @@ jobs:
             echo "  <span class=\"version\">📦 最新版本: ${RELEASE_NAME}</span>" >> /tmp/release_content.html
             echo "  <span class=\"date\"> | 发布时间: ${FORMATTED_DATE}</span>" >> /tmp/release_content.html
             echo '  <br>' >> /tmp/release_content.html
-            echo "  <a href=\"${HTML_URL}\" class=\"github-link\" target=\"_blank\">🔗 前往 GitHub Releases 下载</a>" >> /tmp/release_content.html
+            echo "  <a href=\"${HTML_URL}\" class=\"github-link\" target=\"_blank\" rel=\"noopener noreferrer\">🔗 前往 GitHub Releases 下载</a>" >> /tmp/release_content.html
             echo '</div>' >> /tmp/release_content.html
             
             # Convert release notes from Markdown to HTML
@@ -363,8 +363,8 @@ jobs:
                 sudo apt-get update -qq && sudo apt-get install -y -qq pandoc > /dev/null 2>&1
               fi
               
-              # Convert markdown to HTML and append
-              pandoc /tmp/release_body.md -f gfm -t html >> /tmp/release_content.html
+              # Convert markdown to HTML and append, with error handling
+              pandoc /tmp/release_body.md -f gfm -t html >> /tmp/release_content.html || echo "<p>Failed to render release notes.</p>" >> /tmp/release_content.html
             fi
           else
             # No release yet
