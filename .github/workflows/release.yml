@@ -218,13 +218,13 @@ jobs:
         done
         
         # Replace placeholders in template using sed with file content
-        # First, escape special characters in the replacement text
-        ORIGINAL_FIRMWARE=$(cat /tmp/original_firmware.txt | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
-        BOARD_TABLE=$(cat /tmp/board_table.txt | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
+        # First, escape special characters in the replacement text (& / \ and the delimiter #)
+        ORIGINAL_FIRMWARE=$(cat /tmp/original_firmware.txt | sed 's#[&#/\]#\\&#g' | tr '\n' '\r')
+        BOARD_TABLE=$(cat /tmp/board_table.txt | sed 's#[&#/\]#\\&#g' | tr '\n' '\r')
         
         # Replace placeholders (using \r as newline placeholder)
-        sed -i "s|{{ORIGINAL_FIRMWARE}}|${ORIGINAL_FIRMWARE}|g" release_notes.md
-        sed -i "s|{{BOARD_TABLE}}|${BOARD_TABLE}|g" release_notes.md
+        sed -i "s#{{ORIGINAL_FIRMWARE}}#${ORIGINAL_FIRMWARE}#g" release_notes.md
+        sed -i "s#{{BOARD_TABLE}}#${BOARD_TABLE}#g" release_notes.md
         
         # Convert \r back to newlines
         sed -i 's/\r/\n/g' release_notes.md
@@ -376,8 +376,9 @@ jobs:
           fi
           
           # Replace release content placeholder using sed with file
-          RELEASE_CONTENT=$(cat /tmp/release_content.html | sed 's/[&/\]/\\&/g' | tr '\n' '\r')
-          sed -i "s|{{RELEASE_CONTENT}}|${RELEASE_CONTENT}|g" _site/index.html
+          # Escape special characters (& / \ and the delimiter #)
+          RELEASE_CONTENT=$(cat /tmp/release_content.html | sed 's#[&#/\]#\\&#g' | tr '\n' '\r')
+          sed -i "s#{{RELEASE_CONTENT}}#${RELEASE_CONTENT}#g" _site/index.html
           sed -i 's/\r/\n/g' _site/index.html
           
           echo "Site built successfully"
