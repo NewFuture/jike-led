@@ -127,11 +127,22 @@ jobs:
         echo "Preparing release files..."
         mkdir -p release-files
         
-        # Move all patched firmware files to release directory (exclude original firmware)
+        # Move all patched firmware files to release directory
         # Patched files have format: <board>-JIKEAP_AP250MD*.bin
         # Note: The pattern "*-JIKEAP_AP250MD*.bin" intentionally matches both AP250MD and AP250MDV firmware files,
         # since "AP250MDV" contains "AP250MD". This ensures both variants are included in the release.
         find . -maxdepth 1 -type f -name "*-JIKEAP_AP250MD*.bin" -exec mv {} release-files/ \;
+        
+        # Also copy original firmware files to release directory
+        # Original files have format: JIKEAP_AP250MD*.bin (without board prefix)
+        if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ] && [ -f "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
+          mv "${{ steps.download.outputs.ap250mdv_filename }}" release-files/
+          echo "Added original firmware: ${{ steps.download.outputs.ap250mdv_filename }}"
+        fi
+        if [ -n "${{ steps.download.outputs.ap250md_filename }}" ] && [ -f "${{ steps.download.outputs.ap250md_filename }}" ]; then
+          mv "${{ steps.download.outputs.ap250md_filename }}" release-files/
+          echo "Added original firmware: ${{ steps.download.outputs.ap250md_filename }}"
+        fi
         
         echo "Files prepared for release:"
         ls -lh release-files/
@@ -161,9 +172,9 @@ jobs:
         cat > release_notes.md << 'EOF'
         ## Patched Firmware Release
         
-        This release contains patched firmware files for various router models.
+        This release contains both original and patched firmware files for various router models.
         
-        ### Original Firmware Files
+        ### Original Firmware Files (included in this release)
         EOF
         
         if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
