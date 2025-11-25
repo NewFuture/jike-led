@@ -160,60 +160,89 @@ jobs:
         # Set release tag and name
         if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
           TAG_NAME="${GITHUB_REF_NAME}"
-          RELEASE_NAME="Patched Firmware ${GITHUB_REF_NAME}"
+          RELEASE_NAME="${GITHUB_REF_NAME}"
         else
           TAG_NAME="v${{ steps.download.outputs.version }}"
-          RELEASE_NAME="Patched Firmware ${{ steps.download.outputs.version }}"
+          RELEASE_NAME="${{ steps.download.outputs.version }}"
         fi
         
         echo "Creating release: $TAG_NAME"
         
-        # Create release notes
-        cat > release_notes.md << 'EOF'
-        ## Patched Firmware Release
+        # Get repository info for download links
+        REPO_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}"
         
-        This release contains both original and patched firmware files for various router models.
+        # Create release notes in Chinese (heredoc content will be trimmed at the end)
+        cat > release_notes.md << 'EOFHEADER'
+        ## LED 修复固件
         
-        ### Original Firmware Files (included in this release)
-        EOF
+        本发布版本包含原版固件和针对各型号路由器的 LED 修复固件。
+        
+        ### 原版固件
+        EOFHEADER
         
         if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ]; then
-          echo "- ${{ steps.download.outputs.ap250mdv_filename }}" >> release_notes.md
+          echo "- [${{ steps.download.outputs.ap250mdv_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250mdv_filename }})" >> release_notes.md
         fi
         if [ -n "${{ steps.download.outputs.ap250md_filename }}" ]; then
-          echo "- ${{ steps.download.outputs.ap250md_filename }}" >> release_notes.md
+          echo "- [${{ steps.download.outputs.ap250md_filename }}](${REPO_URL}/${{ steps.download.outputs.ap250md_filename }})" >> release_notes.md
         fi
         
-        cat >> release_notes.md << 'EOF'
+        cat >> release_notes.md << 'EOFTABLE'
         
-        ### Patched for Models
+        ### 支持型号
         
-        Each firmware file has been patched for the following router models (as configured in `leds.ini`):
-        EOF
+        请根据您的路由器型号下载对应的固件文件：
         
-        # List all board profiles from leds.ini
-        grep '^\[' leds.ini | sed 's/\[/- /' | sed 's/\]//' >> release_notes.md
+        | 型号 | AP250MDV 固件 | AP250MD 固件 |
+        |------|---------------|--------------|
+        EOFTABLE
         
-        cat >> release_notes.md << 'EOF'
+        # Generate table rows for each board profile using while read for better handling
+        grep '^\[' leds.ini | sed 's/\[\([^];]*\)\].*/\1/' | while read -r board; do
+          AP250MDV_FILE="${board}-${{ steps.download.outputs.ap250mdv_filename }}"
+          AP250MD_FILE="${board}-${{ steps.download.outputs.ap250md_filename }}"
+          
+          # Build table row with download links
+          ROW="| ${board} |"
+          
+          if [ -n "${{ steps.download.outputs.ap250mdv_filename }}" ] && [ -f "release-files/${AP250MDV_FILE}" ]; then
+            ROW="${ROW} [下载](${REPO_URL}/${AP250MDV_FILE}) |"
+          else
+            ROW="${ROW} - |"
+          fi
+          
+          if [ -n "${{ steps.download.outputs.ap250md_filename }}" ] && [ -f "release-files/${AP250MD_FILE}" ]; then
+            ROW="${ROW} [下载](${REPO_URL}/${AP250MD_FILE}) |"
+          else
+            ROW="${ROW} - |"
+          fi
+          
+          echo "${ROW}" >> release_notes.md
+        done
         
-        ### Installation Instructions
+        cat >> release_notes.md << 'EOFFOOTER'
         
-        ⚠️ **Important Warnings:**
-        1. Modified firmware lacks complete signature and can only be uploaded via U-Boot
-        2. Do NOT use direct upgrade method
-        3. Always backup your original firmware before flashing
-        4. Flashing incorrect firmware may brick your device
+        ### 安装说明
         
-        ### Usage
+        ⚠️ **重要警告：**
+        1. 修改后的固件缺少完整签名，只能通过 U-Boot 上传
+        2. 请勿使用直接升级方式
+        3. 刷机前请务必备份原始固件
+        4. 刷写错误的固件可能导致设备变砖
         
-        1. Download the firmware file matching your router model (filename starts with your model name)
-        2. Upload via U-Boot recovery mode
-        3. Refer to the [README](https://github.com/NewFuture/jike-led) for detailed instructions
+        ### 使用方法
         
-        ### Source
+        1. 根据您的路由器型号下载对应的固件文件
+        2. 通过 U-Boot 恢复模式上传固件
+        3. 详细说明请参考 [README](https://github.com/NewFuture/jike-led)
         
-        Original firmware downloaded from: http://file.cnrouter.com/index.php/Index/apbeta.html
-        EOF
+        ### 固件来源
+        
+        原版固件下载自：http://file.cnrouter.com/index.php/Index/apbeta.html
+        EOFFOOTER
+        
+        # Remove leading whitespace from all lines (handles heredoc indentation)
+        sed -i 's/^[[:space:]]*//' release_notes.md
         
         # Create or update release
         if gh release view "$TAG_NAME" >/dev/null 2>&1; then
