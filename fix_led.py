@@ -639,9 +639,18 @@ def main() -> int:
     # 始终按 INI 解析；若未指定 --config，则默认使用 leds.ini
     try:
         configs = load_ini_config(args.config, getattr(args, "profile", None))
-    except Exception as e:
+    except (FileNotFoundError, PermissionError, IOError) as e:
+        # 配置文件访问错误，返回 2
         print(f"Failed to load config {args.config}: {e}", file=sys.stderr)
-        return 1
+        return 2
+    except ValueError as e:
+        # 配置文件内容解析错误（如无效的数值），返回 3
+        print(f"Config parsing error in {args.config}: {e}", file=sys.stderr)
+        return 3
+    except Exception as e:
+        # 其他未知错误，返回 2
+        print(f"Failed to load config {args.config}: {e}", file=sys.stderr)
+        return 2
 
     # 如果没有指定 board 但指定了 output，则报错
     if len(configs) > 1 and args.output:

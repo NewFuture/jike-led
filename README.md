@@ -236,23 +236,19 @@ red   = 3
 
 当前 `leds.ini` 已配置的机型包括：
 
-- **fur602** - FUR602 路由器
-- **komi-a31_blue** - Komi A31（使用蓝灯）
 - **360t7** - 360 T7 路由器
 - **abt_asr3000** - ABT ASR3000
 - **cetron_ct3003** - Cetron CT3003
 - **cmcc-rax3000m** - 中国移动 RAX3000M
 - **cmcc-rax3000m-emmc** - 中国移动 RAX3000M (eMMC版本)
 - **cmcc_a10** - 中国移动 A10
-- **h3c_magic-nx30-pro** - H3C Magic NX30 Pro
 - **honor_fur-602** - 荣耀 FUR-602
 - **imou_lc-hx3001** - 乐橙 LC-HX3001
 - **konka_komi-a31** - 康佳 Komi A31
-- **livinet_zr-3020** - Livinet ZR-3020
+- **livinet_zr-3020** - 兆能 ZR-3020
 - **newland_nl-wr8103** - 新大陆 NL-WR8103
 - **newland_nl-wr9103** - 新大陆 NL-WR9103
 - **nokia-ea0326gmp** - Nokia EA0326GMP
-- **openembed-som7981** - OpenEmbed SOM7981
 
 > [!TIP]
 > 完整列表请查看 [`leds.ini`](leds.ini) 文件。
@@ -302,13 +298,6 @@ A:
 
 #### Q: 可以同时修改多个机型吗？
 A: 可以。不指定 `-b` 参数时，脚本会为 `leds.ini` 中的所有机型生成对应的固件文件。
-
-#### Q: fix_led_fur602.py 和 fix_led.py 有什么区别？
-A: 
-- `fix_led.py`：通用版本，支持通过 INI 配置文件管理多个机型（**推荐使用**）
-- `fix_led_fur602.py`：早期版本，专门为 FUR602 和 Komi-A31 设计，功能较少
-
-新用户建议使用 `fix_led.py`，它更灵活、功能更完善。
 
 ### 故障排除
 
@@ -612,15 +601,12 @@ If your model is not configured in `leds.ini`:
 
 Currently configured models in `leds.ini`:
 
-- **fur602** - FUR602 Router
-- **komi-a31_blue** - Komi A31 (using blue LED)
 - **360t7** - 360 T7 Router
 - **abt_asr3000** - ABT ASR3000
 - **cetron_ct3003** - Cetron CT3003
 - **cmcc-rax3000m** - China Mobile RAX3000M
 - **cmcc-rax3000m-emmc** - China Mobile RAX3000M (eMMC version)
 - **cmcc_a10** - China Mobile A10
-- **h3c_magic-nx30-pro** - H3C Magic NX30 Pro
 - **honor_fur-602** - Honor FUR-602
 - **imou_lc-hx3001** - IMOU LC-HX3001
 - **konka_komi-a31** - Konka Komi A31
@@ -628,7 +614,6 @@ Currently configured models in `leds.ini`:
 - **newland_nl-wr8103** - Newland NL-WR8103
 - **newland_nl-wr9103** - Newland NL-WR9103
 - **nokia-ea0326gmp** - Nokia EA0326GMP
-- **openembed-som7981** - OpenEmbed SOM7981
 
 > [!TIP]
 > See [`leds.ini`](leds.ini) for complete list.
@@ -663,9 +648,6 @@ A: Use U-Boot recovery mode to flash original firmware. **Always backup before m
 
 **Q: Can I modify multiple models simultaneously?**  
 A: Yes. Without specifying `-b`, script generates firmware for all models in `leds.ini`.
-
-**Q: Difference between fix_led_fur602.py and fix_led.py?**  
-A: `fix_led.py` is the newer, recommended version supporting multiple models via INI config. `fix_led_fur602.py` is the older version for specific models only.
 
 ### Troubleshooting
 

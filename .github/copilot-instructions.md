@@ -18,7 +18,7 @@ This file contains special-purpose firmware tooling. When editing it, Copilot sh
 - Each INI section is a **board profile**, e.g.:
 
   ```ini
-  [komi-a31]
+  [konka_komi-a31]
   dtb_index = 1          ; optional, 0-based index of DTB to patch
   green = 8              ; maps to /leds/green:gpios second u32
   red   = 34             ; maps to /leds/red:gpios second u32

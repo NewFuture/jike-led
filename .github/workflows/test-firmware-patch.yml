@@ -3,8 +3,14 @@ name: Test Firmware Patch
 on:
   push:
     branches: [ main ]
+    paths:
+      - '*.ini'
+      - '*.py'
   pull_request:
     branches: [ main ]
+    paths:
+      - '*.ini'
+      - '*.py'
   workflow_dispatch:
     inputs:
       firmware_url:
