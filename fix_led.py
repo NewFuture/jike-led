@@ -641,7 +641,7 @@ def main() -> int:
         configs = load_ini_config(args.config, getattr(args, "profile", None))
     except Exception as e:
         print(f"Failed to load config {args.config}: {e}", file=sys.stderr)
-        return 1
+        return 2
 
     # 如果没有指定 board 但指定了 output，则报错
     if len(configs) > 1 and args.output:
