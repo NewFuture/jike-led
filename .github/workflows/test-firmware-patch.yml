@@ -4,12 +4,12 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'leds.ini'
+      - '*.ini'
       - '*.py'
   pull_request:
     branches: [ main ]
     paths:
-      - 'leds.ini'
+      - '*.ini'
       - '*.py'
   workflow_dispatch:
     inputs:
