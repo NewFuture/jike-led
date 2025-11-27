@@ -26,7 +26,7 @@ jike-led/
 
 ## Bootstrap and Build
 
-This project uses **Python 3.6+** with only standard library dependencies (no external packages required).
+This project uses **Python 3.7+** with only standard library dependencies (no external packages required).
 
 ### Quick Start
 
@@ -35,7 +35,7 @@ This project uses **Python 3.6+** with only standard library dependencies (no ex
 git clone https://github.com/NewFuture/jike-led.git
 cd jike-led
 
-# Verify Python version (requires 3.6+, recommended 3.7+)
+# Verify Python version (requires 3.7+)
 python3 --version
 
 # No installation or build step needed - run directly
