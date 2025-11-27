@@ -1,3 +1,91 @@
+# GitHub Copilot Instructions for jike-led
+
+This document provides guidance for GitHub Copilot when working with this repository.
+
+## Project Overview
+
+This repository contains `fix_led.py`, a single-file Python script that patches LED GPIO mappings in router firmware DTB (Device Tree Blob) files. It is used to fix LED functionality on various router models running Gecoos AP firmware.
+
+### Repository Structure
+
+```
+jike-led/
+├── fix_led.py              # Main DTB patcher script (single file, ~740 lines)
+├── leds.ini                # Configuration file with board profiles
+├── README.md               # Documentation (bilingual: Chinese/English)
+├── LICENSE                 # Apache License 2.0
+├── CNAME                   # Custom domain for GitHub Pages
+└── .github/
+    ├── copilot-instructions.md     # This file
+    ├── pages-template.html         # Template for GitHub Pages
+    ├── release-notes-template.md   # Template for release notes
+    └── workflows/
+        ├── release.yml             # Auto-release workflow
+        └── test-firmware-patch.yml # CI test workflow
+```
+
+## Bootstrap and Build
+
+This project uses **Python 3.6+** with only standard library dependencies (no external packages required).
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/NewFuture/jike-led.git
+cd jike-led
+
+# Verify Python version (requires 3.6+, recommended 3.7+)
+python3 --version
+
+# No installation or build step needed - run directly
+python3 fix_led.py --help
+```
+
+### Running the Script
+
+```bash
+# List DTBs in a firmware file
+python3 fix_led.py firmware.bin --list
+
+# Patch firmware for all configured boards
+python3 fix_led.py firmware.bin
+
+# Patch firmware for a specific board
+python3 fix_led.py firmware.bin -b konka_komi-a31
+```
+
+## Testing
+
+The repository has a CI workflow that tests the script on real firmware. To test locally:
+
+```bash
+# Download test firmware (if available)
+curl -L -o test_firmware.bin "http://file.cnrouter.com/upload/test/%E9%9B%86%E5%AE%A2AP_MTK_MT7981_WIFI6/JIKEAP_AP250MDV_MT7981_K5_NAND_8.1_2025102100.bin"
+
+# Test listing DTBs
+python3 fix_led.py test_firmware.bin --list
+
+# Test batch patching
+python3 fix_led.py test_firmware.bin
+
+# Test single board patching
+python3 fix_led.py test_firmware.bin -b konka_komi-a31 -o test-output.bin
+```
+
+**Note**: Firmware files are not included in the repository (see `.gitignore`). CI tests run against real firmware downloaded from the vendor's server.
+
+## Code Style
+
+- **Single-file architecture**: Keep everything in `fix_led.py` - do not split into modules
+- **Standard library only**: No external dependencies allowed
+- **Type hints**: Use Python typing (already present in codebase)
+- **Docstrings**: Follow existing docstring conventions
+- **Comments**: Use `#` for inline comments; match existing style
+- **INI configuration**: All board configs go in `leds.ini`, not in Python code
+
+---
+
 # GitHub Copilot Instructions for `fix_led.py`
 
 This file contains special-purpose firmware tooling. When editing it, Copilot should follow these guidelines:
