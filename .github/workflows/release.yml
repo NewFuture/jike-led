@@ -125,9 +125,15 @@ jobs:
         fi
         echo "Last commit time: $LAST_COMMIT_TIME"
         
-        # Convert to Unix timestamps for comparison
-        RELEASE_TS=$(date -d "$RELEASE_UPDATED_AT" +%s)
-        COMMIT_TS=$(date -d "$LAST_COMMIT_TIME" +%s)
+        # Convert to Unix timestamps for comparison (with error handling)
+        RELEASE_TS=$(date -d "$RELEASE_UPDATED_AT" +%s 2>/dev/null) || {
+          echo "Failed to parse release update time, will proceed with build."
+          exit 0
+        }
+        COMMIT_TS=$(date -d "$LAST_COMMIT_TIME" +%s 2>/dev/null) || {
+          echo "Failed to parse commit time, will proceed with build."
+          exit 0
+        }
         
         if [ "$RELEASE_TS" -gt "$COMMIT_TS" ]; then
           echo "Release update time ($RELEASE_UPDATED_AT) is later than last commit time ($LAST_COMMIT_TIME)."
